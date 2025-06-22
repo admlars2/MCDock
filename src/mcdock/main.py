@@ -2,6 +2,8 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 from .config import settings
 from .routers.instances import router as instances_router
@@ -18,6 +20,12 @@ def create_app() -> FastAPI:
         description="Manage Docker-based Minecraft servers via REST + WebSockets",
         version="0.1.0",
     )
+
+    scheduler = AsyncIOScheduler({
+        'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
+    })
+    scheduler.start()
+    app.state.scheduler = scheduler
 
     # CORS (adjust origins as needed)
     app.add_middleware(

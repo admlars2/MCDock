@@ -8,7 +8,6 @@ from .rcon_service import RconService
 from .docker_service import DockerService
 
 
-
 class BackupService:
     """
     Service for managing backups entirely in Python—no external scripts.
@@ -17,15 +16,8 @@ class BackupService:
     root = Path(settings.MC_ROOT)
 
     @classmethod
-    def _get_instance_dir(cls, instance_name: str) -> Path:
-        path = cls.root / instance_name
-        if not path.exists() or not path.is_dir():
-            raise FileNotFoundError(f"Instance not found: {instance_name}")
-        return path
-
-    @classmethod
     def _get_backup_dir(cls, instance_name: str) -> Path:
-        inst_dir = cls._get_instance_dir(instance_name)
+        inst_dir = DockerService.get_instance_dir(instance_name)
         backup_dir = inst_dir / "backups"
         backup_dir.mkdir(parents=True, exist_ok=True)
         return backup_dir
@@ -39,7 +31,7 @@ class BackupService:
 
     @classmethod
     def trigger_backup(cls, instance_name: str) -> None:
-        inst_dir = cls._get_instance_dir(instance_name)
+        inst_dir = DockerService.get_instance_dir(instance_name)
         data_dir = inst_dir / "data"
         backup_dir = cls._get_backup_dir(instance_name)
 
@@ -71,7 +63,7 @@ class BackupService:
         """
         Restore the given backup over the instance's data directory.
         """
-        inst_dir   = cls._get_instance_dir(instance_name)
+        inst_dir   = DockerService.get_instance_dir(instance_name)
         backup_dir = cls._get_backup_dir(instance_name)
         archive    = backup_dir / filename
         data_dir   = inst_dir / "data"
