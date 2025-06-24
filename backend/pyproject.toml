@@ -4,6 +4,7 @@ version = "1.0.0"
 description = ""
 authors = ["Adam Larson <admlars2@gmail.com>"]
 readme = "README.md"
+packages = [{ include = "mcdock", from = "src" }]
 
 [tool.poetry.dependencies]
 python = "^3.11"

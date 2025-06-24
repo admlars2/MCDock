@@ -1,0 +1,15 @@
+services:
+  mc-server:
+    image: itzg/minecraft-server:latest
+    container_name: proximity
+    restart: unless-stopped
+    environment:
+      EULA: "TRUE"
+      MEMORY: "4G"
+
+    ports:
+    
+      - "25565:25565/tcp"
+
+    volumes:
+      - ./data:/data
