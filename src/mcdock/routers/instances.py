@@ -4,12 +4,11 @@ from fastapi import (
 )
 from fastapi.responses import PlainTextResponse
 
-from .models import ResponseMessage, ComposeUpdate, CommandRequest, InstanceCreate
-from ..config import settings, COMPOSE_TEMPLATE
-from ..schemas.instance import InstanceInfo
+from .models import ResponseMessage, ComposeUpdate, CommandRequest, InstanceCreate, InstanceInfo
+from ..core.config import settings, COMPOSE_TEMPLATE
 from ..services.docker_service import DockerService
 from ..services.rcon_service import RconService
-from ..security import require_token
+from .security import require_token
 
 router = APIRouter(prefix="/instances", dependencies=[Depends(require_token)])
 
@@ -62,7 +61,7 @@ async def update_compose(
         DockerService.update_compose(instance_name, body.compose)
     except ValueError as e:
         raise HTTPException(500, str(e)) from e
-    
+        
     return ResponseMessage(message=f"docker-compose.yml for '{instance_name}' updated.")
 
 

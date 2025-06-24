@@ -1,8 +1,14 @@
 import subprocess
 import shutil
+import yaml
+from collections import OrderedDict
 from pathlib import Path
+from copy import deepcopy
 
-from ..config import settings
+from .models import Instance
+from ..core.config import settings
+from ..core.models import EnvVar, Port, ConnectionType
+from ..templates.compose import COMPOSE_TEMPLATE
 
 
 class DockerService:
@@ -13,10 +19,9 @@ class DockerService:
 
     @classmethod
     def get_instance_dirs(cls) -> list[Path]:
-        root = Path(settings.MC_ROOT)
-        if not root.exists() or not root.is_dir():
+        if not cls.root.exists() or not cls.root.is_dir():
             raise ValueError(f"MC_ROOT path not found: {settings.MC_ROOT}")
-        return [p for p in root.iterdir() if p.is_dir()]
+        return [p for p in cls.root.iterdir() if p.is_dir()]
 
     @classmethod
     def get_instance_dir(cls, instance_name: str) -> Path:
@@ -26,52 +31,179 @@ class DockerService:
         return path
     
     @classmethod
-    def create_instance(instance_name: str, compose: str) -> None:
-        root = Path(settings.MC_ROOT)
-        inst_dir = root / instance_name
-
-        if inst_dir.exists():
-            raise ValueError(f"Instance '{instance_name}' already exists.")
+    def _check_ports(cls, ports: list[Port]):
+        used = set()
+        for d in cls.get_instance_dirs():
+            yml = yaml.safe_load((d / "docker-compose.yml").read_text())
+            for line in yml["services"]["mc-server"]["ports"]:
+                host, proto = line.split("/")[0].split(":")[0], line.split("/")[1]
+                used.add((int(host), proto))
+        for p in ports:
+            if (p.value, p.type) in used:
+                raise ValueError(f"Port {p.value}/{p.type} already in use")
+    
+    @classmethod
+    def create_instance(cls, instance_name: str, image: str, eula: bool, memory: str, env: list[EnvVar], ports: list[Port]) -> None:
+        inst_dir = cls.root / instance_name
 
         # 1) create the folder
         try:
             inst_dir.mkdir(parents=True, exist_ok=False)
+            (inst_dir / "data").mkdir()
         except Exception as e:
             raise ValueError(f"Failed to create instance directory: {e}")
+    
+        instance = Instance(
+            name=instance_name,
+            image=image,
+            eula=eula,
+            memory=memory,
+            env=env,
+            ports=ports
+        )
+
+        compose_txt = COMPOSE_TEMPLATE.render(**instance.model_dump())
 
         # 2) write the user-supplied compose file
         try:
-            (inst_dir / "docker-compose.yml").write_text(compose)
+            (inst_dir / "docker-compose.yml").write_text(compose_txt)
         except Exception as e:
             raise ValueError(500, f"Failed to write compose file: {e}")
         
     @classmethod
-    def get_compose(instance_name: str) -> str:
-        compose_file = Path(settings.MC_ROOT) / instance_name / "docker-compose.yml"
-        if not compose_file.exists():
-            raise ValueError(f"No docker-compose.yml in '{instance_name}'")
+    def get_compose(cls, instance_name: str) -> Instance:
+        """
+        Parse docker-compose.yml and return an Instance object
+        (name, image, eula, memory, env, ports).
+        """
+        compose_path = cls.root / instance_name / "docker-compose.yml"
+        if not compose_path.exists():
+            raise FileNotFoundError(f"No docker-compose.yml in '{instance_name}'")
 
         try:
-            return compose_file.read_text()
-        except Exception as e:
-            raise ValueError(f"Failed to read compose file: {e}")
+            data = yaml.safe_load(compose_path.read_text())
+        except yaml.YAMLError as e:
+            raise ValueError(f"Malformed compose file: {e}") from e
+
+        srv = data["services"]["mc-server"]        # fixed name from the template
+        env = srv.get("environment", {})
+
+        # --- rebuild Instance fields ----------------------------------
+        instance = Instance(
+            name           = instance_name,
+            image          = srv["image"],
+            eula           = env.get("EULA", "FALSE").upper() == "TRUE",
+            memory         = env.get("MEMORY", "4G"),
+            env            = [
+                EnvVar(key=k, value=v)
+                for k, v in env.items()
+                if k not in {"EULA", "MEMORY"}            # exclude locked vars
+            ],
+            ports          = [
+                Port(value=int(binding.split(":")[0]),
+                    type = ConnectionType(binding.split("/")[1]))
+                for binding in srv.get("ports", [])
+            ],
+        )
+        return instance
         
     @classmethod
-    def update_compose(instance_name: str, compose: str) -> None:
-        root = Path(settings.MC_ROOT)
-        inst_dir = root / instance_name
-        
-        if not inst_dir.exists() or not inst_dir.is_dir():
-            raise ValueError(404, f"No such instance: {instance_name}")
-        
-        compose_file = inst_dir / "docker-compose.yml"
-        if not compose_file.exists():
-            raise ValueError(404, f"No docker-compose.yml in '{instance_name}'")
+    def update_compose(
+        cls,
+        instance_name: str,
+        eula: bool | None = None,
+        memory: str | None = None,
+        env: list[EnvVar] | None = None,
+        ports: list[Port] | None = None,
+    ) -> None:
+        """
+        Patch docker-compose.yml with the provided fields.
+        Only supplied args are modified; others stay unchanged.
+        """
+        inst_dir     = cls.get_instance_dir(instance_name)
+        compose_path = inst_dir / "docker-compose.yml"
+        if not compose_path.exists():
+            raise FileNotFoundError(f"No docker-compose.yml in '{instance_name}'")
 
+        # --- load old compose -----------------------------------------
         try:
-            compose_file.write_text(compose)
+            data = yaml.safe_load(compose_path.read_text())
+        except yaml.YAMLError as e:
+            raise ValueError(f"Malformed compose file: {e}") from e
+
+        srv = data["services"]["mc-server"]
+        env_block = srv.setdefault("environment", {})
+
+        # --- patch primitives -----------------------------------------
+        if eula is not None:
+            env_block["EULA"]   = "TRUE" if eula else "FALSE"
+        if memory is not None:
+            env_block["MEMORY"] = memory
+
+        # --- patch env whitelist --------------------------------------
+        if env is not None:
+            env_block = {k: v for k, v in env_block.items()
+                        if k in {"EULA", "MEMORY"}}          # keep locked keys
+            for var in env:
+                env_block[var.key] = var.value
+            srv["environment"] = deepcopy(env_block)
+
+        # --- patch ports ----------------------------------------------
+        if ports is not None:
+            cls._check_ports(ports, exclude_instance=instance_name)
+            srv["ports"] = [
+                f"{p.value}:{p.value}/{p.type}" for p in ports
+            ]
+
+        # --- write atomically -----------------------------------------
+        tmp = compose_path.with_suffix(".tmp")
+        tmp.write_text(
+            yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+        )
+        tmp.replace(compose_path)
+        
+    @classmethod
+    def get_properties(cls, instance_name: str) -> dict[str, str]:
+        """
+        Return key/value pairs from server.properties, ignoring blanks/comments.
+        """
+        inst_dir = cls.root / instance_name
+        prop_path = inst_dir / "data" / "server.properties"
+
+        if not prop_path.exists():
+            raise ValueError(404, f"No server.properties in '{instance_name}'")
+
+        props: dict[str, str] = OrderedDict()
+        for line in prop_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            if "=" not in line:
+                # Ill-formed line → ignore or raise; here we ignore
+                continue
+            key, value = line.split("=", 1)
+            props[key.strip()] = value.strip()
+
+        return props
+    
+    @classmethod
+    def update_properties(cls, instance_name: str, props: dict[str, str]) -> None:
+        """
+        Overwrite server.properties with the given mapping.
+        Comments are dropped; only key=value lines are kept.
+        """
+        inst_dir = cls.root / instance_name
+        prop_path = inst_dir / "data" / "server.properties"
+
+        if not prop_path.exists():
+            raise ValueError(404, f"No server.properties in '{instance_name}'")
+        
+        try:
+            tmp = prop_path.with_suffix(".tmp")
+            tmp.write_text("\n".join(f"{k}={v}" for k, v in props.items()) + "\n")
+            tmp.replace(prop_path)
         except Exception as e:
-            raise ValueError(500, f"Failed to write compose file: {e}")
+            raise ValueError(500, f"Failed to write server.properties: {e}")
 
     @classmethod
     def get_status(cls, instance_name: str) -> str:
@@ -96,11 +228,11 @@ class DockerService:
             return "error"
 
     @classmethod
-    def start(self, instance_name: str) -> None:
+    def start(cls, instance_name: str) -> None:
         """
         Starts the Docker-compose project (detached).
         """
-        path = self.get_instance_dir(instance_name)
+        path = cls.get_instance_dir(instance_name)
         subprocess.run(
             ["docker", "compose", "up", "-d"],
             cwd=path,
@@ -108,11 +240,11 @@ class DockerService:
         )
 
     @classmethod
-    def stop(self, instance_name: str) -> None:
+    def stop(cls, instance_name: str) -> None:
         """
         Stops the Docker-compose project and removes containers.
         """
-        path = self.get_instance_dir(instance_name)
+        path = cls.get_instance_dir(instance_name)
         subprocess.run(
             ["docker", "compose", "down"],
             cwd=path,
@@ -128,7 +260,7 @@ class DockerService:
         cls.start(instance_name)
 
     @classmethod
-    def stream_logs(self, instance_name: str) -> subprocess.Popen:
+    def stream_logs(cls, instance_name: str) -> subprocess.Popen:
         return subprocess.Popen(
             ["docker", "logs", "-f", instance_name],
             stdout=subprocess.PIPE,
@@ -136,11 +268,11 @@ class DockerService:
         )
     
     @classmethod
-    def stream_stats(self, instance_name: str) -> subprocess.Popen:
+    def stream_stats(cls, instance_name: str) -> subprocess.Popen:
         """
         Return a subprocess that streams live Docker stats for the given instance.
         """
-        path = self.get_instance_dir(instance_name)
+        path = cls.get_instance_dir(instance_name)
         result = subprocess.run(
             ["docker", "compose", "ps", "-q"],
             cwd=path,

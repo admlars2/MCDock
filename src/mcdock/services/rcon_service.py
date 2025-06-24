@@ -1,27 +1,27 @@
-# File: src/mc_panel/services/rcon_service.py
-from pathlib import Path
 from mcipc.rcon.je import Client
 
-from ..config import settings
+from ..core.config import settings
+from .docker_service import DockerService
 
-
-def _read_rcon_from_props(props_path: Path) -> tuple[str, int]:
+def _read_rcon_from_props(instance_name: str) -> tuple[str, int]:
     """
-    Read RCON password and port from a server.properties file.
+    Pull rcon.password and rcon.port from server.properties.
+    Falls back to global defaults if keys are missing or malformed.
     """
-    pwd = None
-    port = None
-    for ln in props_path.read_text().splitlines():
-        if ln.startswith("rcon.password="):
-            pwd = ln.split("=", 1)[1].strip()
-        elif ln.startswith("rcon.port="):
-            try:
-                port = int(ln.split("=", 1)[1].strip())
-            except ValueError:
-                port = None
-    # Use parsed values or fall back to global settings
-    return pwd or settings.RCON_PASSWORD, port or settings.RCON_PORT
+    props = DockerService.get_properties(instance_name)
 
+    # --- password ---
+    pwd_raw = props.get("rcon.password") or settings.RCON_PASSWORD
+    pwd = pwd_raw.strip() if isinstance(pwd_raw, str) else settings.RCON_PASSWORD
+
+    # --- port ---
+    port_raw = props.get("rcon.port")
+    try:
+        port = int(port_raw.strip()) if port_raw else settings.RCON_PORT
+    except (ValueError, AttributeError):
+        port = settings.RCON_PORT
+
+    return pwd, port
 
 class RconService:
     """
@@ -34,11 +34,9 @@ class RconService:
         """
         Send a command via RCON for the specified instance.
         """
-        inst_dir = Path(settings.MC_ROOT) / instance_name
-        props = inst_dir / "data" / "server.properties"
-        pwd, port = _read_rcon_from_props(props)
+        pwd, port = _read_rcon_from_props(instance_name)
 
         # Connect and run the command
-        with Client(cls.host, port=port) as client:
+        with Client(cls.host, port=port, timeout=5) as client:
             client.login(pwd)
             return client.run(command)

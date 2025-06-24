@@ -11,7 +11,7 @@ from apscheduler.jobstores.base import JobLookupError
 from .models import ResponseMessage, CronSchedule, ScheduledJob
 from ..services.docker_service import DockerService
 from ..services.backup_service import BackupService
-from ..security import require_token
+from .security import require_token
 
 
 router = APIRouter(prefix="/schedules", dependencies=[Depends(require_token)])

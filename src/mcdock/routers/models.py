@@ -1,19 +1,34 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
+from ..core.models import Port, EnvVar, ConnectionType
 
 class InstanceCreate(BaseModel):
-    instance_name: str = Field(
-        regex=r"^[A-Za-z0-9_-]+$",
-        description="Only letters, numbers, underscore or hyphen"
-    )
-    compose: str = Field(
-        description="Full docker-compose.yml contents for this instance"
-    )
+    name:        str  = Field(pattern=r"^[A-Za-z0-9_-]+$")
+    image:       str = Field(default="itzg/minecraft-server:latest")
+    eula:        bool
+    memory:      str = Field(default="4G", pattern=r"^\d+[MG]$")
+    env:         list[EnvVar] = []
+    ports:       list[Port] = Field(default_factory=lambda: [Port(min=25565, max=25565, type=ConnectionType.TCP)])
 
-class ComposeUpdate(BaseModel):
-    compose: str = Field(
-        description="Full contents of docker-compose.yml to write"
-    )
+    @classmethod
+    @field_validator("image")
+    def validate_image(cls, v: str) -> str:
+        if not v.startswith("itzg/minecraft-server"):
+            raise ValueError("Must be a minecraft server.")
+
+class InstanceUpdate(BaseModel):
+    """ Update that always performs a rewrite. """
+    eula: bool
+    memory:     str = Field(pattern=r"^\d+[MG]$")
+    env:        list[EnvVar]
+    ports:      list[Port]
+
+class InstanceInfo(BaseModel):
+    """
+    Schema representing a Minecraft instance and its current status.
+    """
+    name: str = Field(description="Name of the instance folder")
+    status: str = Field(description="Current status: e.g., 'running' or 'stopped'")
 
 class CommandRequest(BaseModel):
     command: str

@@ -3,7 +3,7 @@ import time
 from datetime import datetime, UTC
 from pathlib import Path
 
-from ..config import settings
+from ..core.config import settings
 from .rcon_service import RconService
 from .docker_service import DockerService
 

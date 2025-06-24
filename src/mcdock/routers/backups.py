@@ -11,7 +11,7 @@ from apscheduler.triggers.date import DateTrigger
 from .models import ResponseMessage
 from ..services.backup_service import BackupService
 from ..services.docker_service import DockerService
-from ..security import require_token
+from .security import require_token
 
 
 router = APIRouter(prefix="/backups", dependencies=[Depends(require_token)])
