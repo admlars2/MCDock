@@ -1,6 +1,7 @@
 from jinja2 import Template
 
-COMPOSE_TEMPLATE: Template = Template("""
+COMPOSE_TEMPLATE: Template = Template(
+    """
 services:
   mc-server:
     image: {{ image }}
@@ -9,13 +10,15 @@ services:
     environment:
       EULA: "{{ 'TRUE' if eula else 'FALSE' }}"
       MEMORY: "{{ memory }}"
-{% for var in env %}
+{%- for var in env %}
       {{ var.key }}: "{{ var.value }}"
-{% endfor %}
+{%- endfor %}
     ports:
-{% for p in ports %}
-      - "{{ p.value }}:{{ p.value }}/{{ p.type }}"
-{% endfor %}
+{%- for p in ports %}
+      - "{{ p.host_port }}:{{ p.container_port }}/{{ p.type.value }}"
+{%- endfor %}
     volumes:
       - ./data:/data
-""".lstrip())
+""",
+    lstrip_blocks=True,
+)

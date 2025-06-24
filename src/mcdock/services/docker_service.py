@@ -7,7 +7,7 @@ from copy import deepcopy
 
 from .models import Instance
 from ..core.config import settings
-from ..core.models import EnvVar, Port, ConnectionType
+from ..core.models import EnvVar, PortBinding, ConnectionType
 from ..templates.compose import COMPOSE_TEMPLATE
 
 
@@ -31,20 +31,61 @@ class DockerService:
         return path
     
     @classmethod
-    def _check_ports(cls, ports: list[Port]):
-        used = set()
-        for d in cls.get_instance_dirs():
-            yml = yaml.safe_load((d / "docker-compose.yml").read_text())
-            for line in yml["services"]["mc-server"]["ports"]:
-                host, proto = line.split("/")[0].split(":")[0], line.split("/")[1]
-                used.add((int(host), proto))
+    def _check_ports(
+        cls,
+        ports: list[PortBinding],
+        *,
+        exclude_instance: str | None = None,
+    ) -> None:
+        """
+        Make sure every (host_port, proto) pair in *ports* is free.
+
+        The check is done against:
+        • all other instances' compose files
+        • duplicates within *ports* itself
+
+        Raises ValueError on the first conflict.
+        """
+        # ---------------- collect currently-used host ports ----------------
+        used: set[tuple[int, ConnectionType]] = set()
+        for inst_dir in cls.get_instance_dirs():
+            if exclude_instance and inst_dir.name == exclude_instance:
+                continue
+
+            instance = cls.get_compose(inst_dir.name)
+
+            for port in instance.ports:
+                used.add((port.host_port, port.type))
+
+        # ---------------- verify incoming list is self-consistent ----------
+        seen_in_request: set[tuple[int, ConnectionType]] = set()
         for p in ports:
-            if (p.value, p.type) in used:
-                raise ValueError(f"Port {p.value}/{p.type} already in use")
+            key = (p.host_port, p.type)
+            if key in seen_in_request:
+                raise ValueError(f"Duplicate port in request: {p.host_port}/{p.type}")
+            seen_in_request.add(key)
+
+        # ---------------- collide check against other instances ------------
+        for p in ports:
+            if (p.host_port, p.type) in used:
+                raise ValueError(f"Port {p.host_port}/{p.type} already in use")
     
     @classmethod
-    def create_instance(cls, instance_name: str, image: str, eula: bool, memory: str, env: list[EnvVar], ports: list[Port]) -> None:
+    def create_instance(
+        cls, 
+        instance_name: str, 
+        image: str, 
+        eula: bool, 
+        memory: str, 
+        env: list[EnvVar], 
+        ports: list[PortBinding]
+    ) -> None:
+        if not eula:
+            raise ValueError("EULA must be accepted.")
+
         inst_dir = cls.root / instance_name
+
+        cls._check_ports(ports)
 
         # 1) create the folder
         try:
@@ -85,8 +126,21 @@ class DockerService:
         except yaml.YAMLError as e:
             raise ValueError(f"Malformed compose file: {e}") from e
 
-        srv = data["services"]["mc-server"]        # fixed name from the template
-        env = srv.get("environment", {})
+        srv: dict = data["services"]["mc-server"]        # fixed name from the template
+        env: dict = srv.get("environment", {})
+
+        ports_list = []
+        for binding in srv.get("ports", []):
+            # "30000:25565/tcp" or "25565"
+            left, *right = binding.split(":")
+            container_part, proto = ("25565", "tcp") if not right else right[0].split("/")
+            ports_list.append(
+                PortBinding(
+                    host_port=int(left),
+                    container_port=int(container_part),
+                    type=ConnectionType(proto.lower()),
+                )
+            )
 
         # --- rebuild Instance fields ----------------------------------
         instance = Instance(
@@ -99,11 +153,7 @@ class DockerService:
                 for k, v in env.items()
                 if k not in {"EULA", "MEMORY"}            # exclude locked vars
             ],
-            ports          = [
-                Port(value=int(binding.split(":")[0]),
-                    type = ConnectionType(binding.split("/")[1]))
-                for binding in srv.get("ports", [])
-            ],
+            ports          = ports_list,
         )
         return instance
         
@@ -114,7 +164,7 @@ class DockerService:
         eula: bool | None = None,
         memory: str | None = None,
         env: list[EnvVar] | None = None,
-        ports: list[Port] | None = None,
+        ports: list[PortBinding] | None = None,
     ) -> None:
         """
         Patch docker-compose.yml with the provided fields.
@@ -152,7 +202,7 @@ class DockerService:
         if ports is not None:
             cls._check_ports(ports, exclude_instance=instance_name)
             srv["ports"] = [
-                f"{p.value}:{p.value}/{p.type}" for p in ports
+                f"{p.host_port}:{p.container_port}/{p.type}" for p in ports
             ]
 
         # --- write atomically -----------------------------------------
@@ -261,8 +311,10 @@ class DockerService:
 
     @classmethod
     def stream_logs(cls, instance_name: str) -> subprocess.Popen:
+        path = cls.get_instance_dir(instance_name)
         return subprocess.Popen(
-            ["docker", "logs", "-f", instance_name],
+            ["docker","compose","logs","-f","--no-color"],
+            cwd=path,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
         )
@@ -285,7 +337,7 @@ class DockerService:
             raise RuntimeError(f"No running containers for instance: {instance_name}")
         # Stream stats for the first container
         return subprocess.Popen(
-            ["docker", "stats", container_ids[0], "--no-stream"],
+            ["docker", "stats", container_ids[0]],
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT
         )

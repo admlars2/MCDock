@@ -54,7 +54,7 @@ async def schedule_recurring_backup(
 ):
     # validate instance
     try:
-        BackupService.get_instance_dir(instance_name)
+        DockerService.get_instance_dir(instance_name)
     except FileNotFoundError:
         raise HTTPException(404, f"No such instance: {instance_name}")
 
@@ -89,7 +89,7 @@ async def schedule_recurring_restart(
 ):
     # validate instance
     try:
-        BackupService.get_instance_dir(instance_name)
+        DockerService.get_instance_dir(instance_name)
     except FileNotFoundError:
         raise HTTPException(404, f"No such instance: {instance_name}")
 

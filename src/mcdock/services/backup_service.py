@@ -25,7 +25,7 @@ class BackupService:
     @classmethod
     def list_backups(cls, instance_name: str) -> list[str]:
         backup_dir = cls._get_backup_dir(instance_name)
-        files = [p.name for p in backup_dir.iterdir() if p.suffix == ".tar.gz"]
+        files = [p.name for p in backup_dir.iterdir() if p.name.endswith(".tar.gz")]
         files.sort(reverse=True)  # newest first by lexicographic timestamp
         return files[: settings.BACKUP_RETENTION]
 

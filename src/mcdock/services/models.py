@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
-from ..core.models import EnvVar, Port
+from ..core.models import EnvVar, PortBinding
 
 
 class Instance(BaseModel):
@@ -9,4 +9,4 @@ class Instance(BaseModel):
     eula:        bool
     memory:      str
     env:         list[EnvVar]
-    ports:       list[Port]
+    ports:       list[PortBinding]
