@@ -1,11 +1,12 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Security, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+
 from ..core.config import settings
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
 def require_token(
-    credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme)
+    credentials: HTTPAuthorizationCredentials | None = Security(bearer_scheme)
 ) -> None:
     """
     Reject the request unless a valid static Bearer token is supplied.
@@ -16,3 +17,5 @@ def require_token(
     if credentials.credentials != settings.CONTROL_PANEL_BEARER_TOKEN:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
                             detail="Invalid bearer token")
+
+UNAUTHORZIED = {401: {"description": "Unauthorized"}}

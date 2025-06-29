@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import FastAPI
+from fastapi import FastAPI, APIRouter
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -29,24 +29,29 @@ def create_app() -> FastAPI:
     scheduler.start()
     app.state.scheduler = scheduler
 
-    # CORS (adjust origins as needed)
+    # CORS
+    origins = [str(o).rstrip("/") for o in settings.CORS_ORIGINS]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.CORS_ORIGINS,
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
     # Include routers
-    app.include_router(backup_router, tags=["backups"])
-    app.include_router(instances_router, tags=["instances"])
-    app.include_router(schedule_router, tags=["schedules"])
+    api_router = APIRouter(prefix="/api")
 
     # Health check endpoint
-    @app.get("/health")
+    @api_router.get("/health")
     async def health():
         return {"status": "ok"}
+
+    api_router.include_router(backup_router , tags=["backups"])
+    api_router.include_router(instances_router, tags=["instances"])
+    api_router.include_router(schedule_router , tags=["schedules"])
+    app.include_router(api_router)
 
     @app.middleware("http")
     async def log_requests(request, call_next):

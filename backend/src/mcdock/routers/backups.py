@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, UTC
 from fastapi import (
     APIRouter, HTTPException, 
-    Request, Depends
+    Request, Security
 )
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
@@ -11,10 +11,10 @@ from apscheduler.triggers.date import DateTrigger
 from .models import ResponseMessage
 from ..services.backup_service import BackupService
 from ..services.docker_service import DockerService
-from .security import require_token
+from .security import require_token, UNAUTHORZIED
 
 
-router = APIRouter(prefix="/backups", dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/backups", dependencies=[Security(require_token)], responses=UNAUTHORZIED)
 
 
 @router.get("/{instance_name}", response_model=list[str])

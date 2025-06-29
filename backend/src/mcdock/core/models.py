@@ -79,6 +79,11 @@ class ConnectionType(str, Enum):
     TCP = "tcp"
     UDP = "udp"
 
+class InstanceStatus(str, Enum):
+    RUNNING = "running"
+    STOPPED = "stopped"
+    ERROR = "error"
+
 class EnvVar(BaseModel):
     key:  str = Field(pattern=r"^[A-Z0-9_]+$")
     value: str

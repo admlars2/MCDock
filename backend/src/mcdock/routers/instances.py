@@ -8,7 +8,7 @@ from fastapi import (
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
-    Depends,
+    Security,
     Query,
 )
 from fastapi.responses import PlainTextResponse
@@ -23,10 +23,11 @@ from .models import (
 from ..core.config import settings
 from ..templates.compose import COMPOSE_TEMPLATE
 from ..services.docker_service import DockerService
+from ..services.models import Instance
 from ..services.rcon_service import RconService
-from .security import require_token
+from .security import require_token, UNAUTHORZIED
 
-router = APIRouter(prefix="/instances", dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/instances", dependencies=[Security(require_token)], responses=UNAUTHORZIED)
 
 # ---------------------------------------------------------------------------
 # Templates & compose management
@@ -55,7 +56,7 @@ async def create_instance(body: InstanceCreate):
     return ResponseMessage(message=f"Instance '{body.name}' created successfully.")
 
 
-@router.get("/{instance_name}/compose", response_class=PlainTextResponse)
+@router.get("/{instance_name}/compose", response_model=Instance)
 async def get_compose(instance_name: str):
     """Return the raw docker-compose.yml for *instance_name*."""
     try:

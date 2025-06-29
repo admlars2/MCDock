@@ -7,7 +7,7 @@ from copy import deepcopy
 
 from .models import Instance
 from ..core.config import settings
-from ..core.models import EnvVar, PortBinding, ConnectionType
+from ..core.models import EnvVar, PortBinding, ConnectionType, InstanceStatus
 from ..templates.compose import COMPOSE_TEMPLATE
 
 
@@ -272,10 +272,10 @@ class DockerService:
             )
             # If any container ID is shown, it's running
             if result.stdout.strip():
-                return "running"
-            return "stopped"
+                return InstanceStatus.RUNNING
+            return InstanceStatus.STOPPED
         except subprocess.CalledProcessError:
-            return "error"
+            return InstanceStatus.ERROR
 
     @classmethod
     def start(cls, instance_name: str) -> None:

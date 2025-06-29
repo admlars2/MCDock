@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 
-from ..core.models import PortBinding, EnvVar, ConnectionType
+from ..core.models import PortBinding, EnvVar, ConnectionType, InstanceStatus
 
 class InstanceCreate(BaseModel):
     name:        str  = Field(pattern=r"^[A-Za-z0-9_-]+$")
@@ -18,7 +18,7 @@ class InstanceCreate(BaseModel):
 
 class InstanceUpdate(BaseModel):
     """ Update that always performs a rewrite. """
-    eula: bool
+    eula:       bool
     memory:     str = Field(pattern=r"^[1-9]\d*[MG]$")
     env:        list[EnvVar]
     ports:      list[PortBinding]
@@ -28,7 +28,7 @@ class InstanceInfo(BaseModel):
     Schema representing a Minecraft instance and its current status.
     """
     name: str = Field(description="Name of the instance folder")
-    status: str = Field(description="Current status: e.g., 'running' or 'stopped'")
+    status: InstanceStatus = Field(description="Current status: e.g., 'running' or 'stopped'")
 
 class CommandRequest(BaseModel):
     command: str

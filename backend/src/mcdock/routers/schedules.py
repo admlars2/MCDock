@@ -1,7 +1,7 @@
 from datetime import UTC
 from fastapi import (
     APIRouter, HTTPException,
-    Request, Depends 
+    Request, Security 
 )
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -11,10 +11,10 @@ from apscheduler.jobstores.base import JobLookupError
 from .models import ResponseMessage, CronSchedule, ScheduledJob
 from ..services.docker_service import DockerService
 from ..services.backup_service import BackupService
-from .security import require_token
+from .security import require_token, UNAUTHORZIED
 
 
-router = APIRouter(prefix="/schedules", dependencies=[Depends(require_token)])
+router = APIRouter(prefix="/schedules", dependencies=[Security(require_token)], responses=UNAUTHORZIED)
 
 
 @router.get("/list", response_model=list[ScheduledJob])
