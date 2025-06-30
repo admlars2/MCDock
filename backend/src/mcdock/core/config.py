@@ -1,6 +1,8 @@
 """
 Application configuration via environment variables.
 """
+from datetime import timedelta
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AnyHttpUrl
 
@@ -16,7 +18,13 @@ class Settings(BaseSettings):
 
     # CORS origins for the frontend (e.g., ["http://localhost:3000"])
     CORS_ORIGINS: list[AnyHttpUrl] = Field(default=["*"], validation_alias="CORS_ORIGINS")
-    CONTROL_PANEL_BEARER_TOKEN: str = Field(validation_alias="CONTROL_PANEL_BEARER_TOKEN")
+
+    # User
+    USER: str = Field(validation_alias="PANEL_USER")
+    PASSWORD_HASH: str = Field(validation_alias="PANEL_PASSWORD_HASH")
+    JWT_SECRET: str = Field(validation_alias="JWT_SECRET")
+    HASH_ALGO: str = "HS256"
+    JWT_TTL: timedelta = timedelta(hours=8)
 
     # Backup configuration
     BACKUP_INTERVAL_MINUTES: int = 30

@@ -25,9 +25,9 @@ from ..templates.compose import COMPOSE_TEMPLATE
 from ..services.docker_service import DockerService
 from ..services.models import Instance
 from ..services.rcon_service import RconService
-from .security import require_token, UNAUTHORZIED
+from .security import require_user, UNAUTHORIZED
 
-router = APIRouter(prefix="/instances", dependencies=[Security(require_token)], responses=UNAUTHORZIED)
+router = APIRouter(prefix="/instances", dependencies=[Security(require_user)], responses=UNAUTHORIZED)
 
 # ---------------------------------------------------------------------------
 # Templates & compose management

@@ -11,10 +11,10 @@ from apscheduler.triggers.date import DateTrigger
 from .models import ResponseMessage
 from ..services.backup_service import BackupService
 from ..services.docker_service import DockerService
-from .security import require_token, UNAUTHORZIED
+from .security import require_user, UNAUTHORIZED
 
 
-router = APIRouter(prefix="/backups", dependencies=[Security(require_token)], responses=UNAUTHORZIED)
+router = APIRouter(prefix="/backups", dependencies=[Security(require_user)], responses=UNAUTHORIZED)
 
 
 @router.get("/{instance_name}", response_model=list[str])

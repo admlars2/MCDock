@@ -1,14 +1,19 @@
 import logging
 
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, Request
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 from .core.config import settings
 from .routers.backups import router as backup_router
 from .routers.instances import router as instances_router
 from .routers.schedules import router as schedule_router
+from .routers.auth import router as auth_router
 
 
 logger = logging.getLogger(__name__)
@@ -23,6 +28,17 @@ def create_app() -> FastAPI:
         version="0.1.0",
     )
 
+    # Rate Limiter
+    limiter = Limiter(
+        key_func=get_remote_address,
+        default_limits=["30/minute"],
+    )
+
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    app.add_middleware(SlowAPIMiddleware)
+
+    # Job Scheduler
     scheduler = AsyncIOScheduler({
         'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
     })
@@ -48,17 +64,11 @@ def create_app() -> FastAPI:
     async def health():
         return {"status": "ok"}
 
+    api_router.include_router(auth_router, tags=["auth"])
     api_router.include_router(backup_router , tags=["backups"])
     api_router.include_router(instances_router, tags=["instances"])
     api_router.include_router(schedule_router , tags=["schedules"])
     app.include_router(api_router)
-
-    @app.middleware("http")
-    async def log_requests(request, call_next):
-        logger.info(f"→ {request.method} {request.url.path}")
-        resp = await call_next(request)
-        logger.info(f"← {resp.status_code} {request.url.path}")
-        return resp
 
     return app
 

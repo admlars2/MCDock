@@ -43,3 +43,11 @@ class ScheduledJob(BaseModel):
     id: str
     schedule: str         # the trigger spec (cron or date)
     next_run: str | None
+
+class LoginBody(BaseModel):
+    username: str
+    password: str
+
+class TokenResponse(BaseModel):
+    token: str
+    username: str

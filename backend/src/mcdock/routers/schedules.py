@@ -11,10 +11,10 @@ from apscheduler.jobstores.base import JobLookupError
 from .models import ResponseMessage, CronSchedule, ScheduledJob
 from ..services.docker_service import DockerService
 from ..services.backup_service import BackupService
-from .security import require_token, UNAUTHORZIED
+from .security import require_user, UNAUTHORIZED
 
 
-router = APIRouter(prefix="/schedules", dependencies=[Security(require_token)], responses=UNAUTHORZIED)
+router = APIRouter(prefix="/schedules", dependencies=[Security(require_user)], responses=UNAUTHORIZED)
 
 
 @router.get("/list", response_model=list[ScheduledJob])
