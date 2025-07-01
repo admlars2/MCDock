@@ -11,7 +11,7 @@ from slowapi.util import get_remote_address
 
 from .core.config import settings
 from .routers.backups import router as backup_router
-from .routers.instances import router as instances_router
+from .routers.instances import router as instances_router, ws_router as instances_ws_router
 from .routers.schedules import router as schedule_router
 from .routers.auth import router as auth_router
 
@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
     api_router.include_router(auth_router, tags=["auth"])
     api_router.include_router(backup_router , tags=["backups"])
     api_router.include_router(instances_router, tags=["instances"])
+    api_router.include_router(instances_ws_router, tags=["ws_instances"])
     api_router.include_router(schedule_router , tags=["schedules"])
     app.include_router(api_router)
 

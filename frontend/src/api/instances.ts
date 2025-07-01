@@ -1,4 +1,5 @@
 import { apiFetch } from "../lib/api";
+import { buildWsUrl } from "../lib/ws";
 import type {
     InstanceInfo,
     ResponseMessage,
@@ -29,9 +30,7 @@ export const restartInstance = (name: string) =>
     });
 
 export const deleteInstance = (name: string) =>
-    apiFetch<ResponseMessage>(`/instances/${name}`, {
-        method: "DELETE",
-    });
+    apiFetch<void>(`/instances/${name}`, { method: "DELETE" });
 
 export const sendCommand = (name: string, command: string) =>
     apiFetch<ResponseMessage>(`/instances/${name}/cmd`, {
@@ -68,11 +67,20 @@ export const updateProperties = (
 /*  Template & instance creation                                              */
 /* -------------------------------------------------------------------------- */
 
-export const getComposeTemplate = () =>
-    apiFetch<string>('/instances/template');
-
 export const createInstance = (payload: InstanceCompose) =>
-    apiFetch('/instances/create', {
+    apiFetch<ResponseMessage>('/instances/create', {
         method: 'POST',
         json: payload,
     });
+
+/* -------------------------------------------------------------------------- */
+/*  Logs and Stats                                                            */
+/* -------------------------------------------------------------------------- */
+
+export function openLogs(instance: string): WebSocket {
+    return new WebSocket(buildWsUrl(`/instances/${instance}/logs`));
+}
+
+export function openStats(instance: string): WebSocket {
+    return new WebSocket(buildWsUrl(`/instances/${instance}/stats`));
+}

@@ -50,4 +50,4 @@ class LoginBody(BaseModel):
 
 class TokenResponse(BaseModel):
     token: str
-    username: str
+    user: str

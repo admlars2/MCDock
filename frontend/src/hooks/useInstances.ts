@@ -1,53 +1,118 @@
-import { 
-    useQuery,
-    useMutation,
-    useQueryClient,
-    type UseMutationOptions,
+import {
+  useQuery,
+  useMutation,
+  useQueryClient,
+  type UseMutationOptions,
 } from "@tanstack/react-query";
-import { listInstances, startInstance, stopInstance } from "../api/instances";
-import { useApiReady }   from "./useApiReady";          // the health-check hook
-import type { InstanceInfo, ResponseMessage} from "../api/types";
+import {
+  listInstances,
+  startInstance,
+  stopInstance,
+  restartInstance,
+  deleteInstance,
+  createInstance,
+} from "../api/instances";
+import { useApiReady } from "./useApiReady";
+import type {
+  InstanceInfo,
+  ResponseMessage,
+  InstanceCompose,
+} from "../api/types";
 
+/* ─────────────────── GET list ─────────────────── */
 export function useInstances() {
-    const { data: health, isSuccess: healthSuccess } = useApiReady();
-    const enabled = healthSuccess && health?.status === "ok";
+    const { data: health, isSuccess } = useApiReady();
+    const enabled = isSuccess && health?.status === "ok";
 
     return useQuery<InstanceInfo[]>({
         queryKey: ["instances"],
-        queryFn : listInstances,
-        enabled,            // ← magic line
-        staleTime: 30_000,  // cache for 30 s; tweak as you like
+        queryFn: listInstances,
+        enabled,
+        staleTime: 30_000,
     });
 }
 
+/* ─────────────────── mutations helper ─────────── */
+function invalidateInstances(qc: ReturnType<typeof useQueryClient>) {
+    qc.invalidateQueries({ queryKey: ["instances"] });
+}
+
+/* ---- start ---- */
 export function useStartInstance(
-    options?: UseMutationOptions<ResponseMessage, unknown, string>,
-    ) {
+    opts?: UseMutationOptions<ResponseMessage, unknown, string>,
+) {
     const qc = useQueryClient();
-
-    return useMutation<ResponseMessage, unknown, string>({
+    return useMutation({
         mutationKey: ["startInstance"],
-        mutationFn:  startInstance,
-        onSuccess: (data, name, ctx) => {
-        qc.invalidateQueries({ queryKey: ["instances"] });  // refresh table
-        options?.onSuccess?.(data, name, ctx);
+        mutationFn: startInstance,
+        onSuccess: (d, n, ctx) => {
+        invalidateInstances(qc);
+        opts?.onSuccess?.(d, n, ctx);
         },
-        ...options,
+        ...opts,
+    });
+    }
+
+/* ---- stop ---- */
+export function useStopInstance(
+    opts?: UseMutationOptions<ResponseMessage, unknown, string>,
+) {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationKey: ["stopInstance"],
+        mutationFn: stopInstance,
+        onSuccess: (d, n, ctx) => {
+        invalidateInstances(qc);
+        opts?.onSuccess?.(d, n, ctx);
+        },
+        ...opts,
+    });
+    }
+
+/* ---- restart (optional) ---- */
+export function useRestartInstance(
+    opts?: UseMutationOptions<ResponseMessage, unknown, string>,
+) {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationKey: ["restartInstance"],
+        mutationFn: restartInstance,
+        onSuccess: (d, n, ctx) => {
+        invalidateInstances(qc);
+        opts?.onSuccess?.(d, n, ctx);
+        },
+        ...opts,
     });
 }
 
-export function useStopInstance(
-    options?: UseMutationOptions<ResponseMessage, unknown, string>,
+/* ---- delete (optional) ---- */
+export function useDeleteInstance(
+    opts?: UseMutationOptions<void, unknown, string>,
+) {
+    const qc = useQueryClient();
+    return useMutation({
+        mutationKey: ["deleteInstance"],
+        mutationFn: deleteInstance,
+        onSuccess: (d, n, ctx) => {
+        invalidateInstances(qc);
+        opts?.onSuccess?.(d, n, ctx);
+        },
+        ...opts,
+    });
+}
+
+/* ---- create ---- */
+export function useCreateInstance(
+    opts?: UseMutationOptions<ResponseMessage, unknown, InstanceCompose>,
     ) {
     const qc = useQueryClient();
-
-    return useMutation<ResponseMessage, unknown, string>({
-        mutationKey: ["stopInstance"],
-        mutationFn:  stopInstance,
-        onSuccess: (data, name, ctx) => {
-        qc.invalidateQueries({ queryKey: ["instances"] });
-        options?.onSuccess?.(data, name, ctx);
+    return useMutation({
+        mutationKey: ["createInstance"],
+        mutationFn: createInstance,              // (payload) => api call
+        onSuccess: (d, payload, ctx) => {
+        invalidateInstances(qc);               // refresh list on success
+        opts?.onSuccess?.(d, payload, ctx);
         },
-        ...options,
+        ...opts,
     });
 }

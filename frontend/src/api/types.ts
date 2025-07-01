@@ -54,3 +54,8 @@ export interface ScheduledJob {
   /** ISO timestamp of next run, or null */
   next_run: string | null;
 }
+
+export interface TokenResponse {
+    token: string;
+    user: string;
+}

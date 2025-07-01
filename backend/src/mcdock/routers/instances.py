@@ -9,9 +9,8 @@ from fastapi import (
     WebSocket,
     WebSocketDisconnect,
     Security,
-    Query,
+    Depends
 )
-from fastapi.responses import PlainTextResponse
 
 from .models import (
     ResponseMessage,
@@ -20,23 +19,17 @@ from .models import (
     InstanceInfo,
     CommandRequest,
 )
-from ..core.config import settings
-from ..templates.compose import COMPOSE_TEMPLATE
 from ..services.docker_service import DockerService
 from ..services.models import Instance
 from ..services.rcon_service import RconService
-from .security import require_user, UNAUTHORIZED
+from .security import require_user, require_ws_user, UNAUTHORIZED
 
 router = APIRouter(prefix="/instances", dependencies=[Security(require_user)], responses=UNAUTHORIZED)
+ws_router = APIRouter(prefix="/instances", responses=UNAUTHORIZED)
 
 # ---------------------------------------------------------------------------
-# Templates & compose management
+# Compose management
 # ---------------------------------------------------------------------------
-
-@router.get("/template", response_class=PlainTextResponse, status_code=200)
-async def get_instance_template():
-    """Return the Jinja template used to render docker‑compose.yml."""
-    return COMPOSE_TEMPLATE
 
 
 @router.post("/create", status_code=201, response_model=ResponseMessage)
@@ -178,34 +171,43 @@ async def send_command(instance_name: str, body: CommandRequest):
 # ---------------------------------------------------------------------------
 # WebSocket: logs & stats streams
 # ---------------------------------------------------------------------------
-
-@router.websocket("/{instance_name}/logs")
-async def websocket_logs(websocket: WebSocket, instance_name: str, token: str | None = Query(None)):
+@ws_router.websocket("/{instance_name}/logs")
+async def websocket_logs(
+    websocket: WebSocket,
+    instance_name: str,
+    _ = Depends(require_ws_user),
+):
     await websocket.accept()
-    if token != settings.CONTROL_PANEL_BEARER_TOKEN:
-        await websocket.close(code=4403)
-        return
-    process = None
+    process = await DockerService.stream_logs_async(instance_name)
+
     try:
-        process = DockerService.stream_logs(instance_name)
-        for raw_line in process.stdout:
-            await websocket.send_text(raw_line.decode(errors="ignore"))
+        while True:
+            line = await process.stdout.readline()
+            if line:
+                await websocket.send_text(line.decode(errors="ignore"))
+            else:
+                break
+    
     except WebSocketDisconnect:
-        if process:
+        pass
+    finally:
+        if process.returncode is None:
             process.terminate()
 
-
-@router.websocket("/{instance_name}/stats")
-async def websocket_stats(websocket: WebSocket, instance_name: str, token: str | None = Query(None)):
-    await websocket.accept()
-    if token != settings.CONTROL_PANEL_BEARER_TOKEN:
-        await websocket.close(code=4403)
-        return
+@ws_router.websocket("/{instance_name}/stats")
+async def websocket_stats(
+    ws: WebSocket, 
+    instance_name: str,
+    _ = Security(require_ws_user)
+):
+    await ws.accept()
     process = None
     try:
         process = DockerService.stream_stats(instance_name)
         for raw_line in process.stdout:
-            await websocket.send_text(raw_line.decode(errors="ignore"))
+            await ws.send_text(raw_line.decode(errors="ignore"))
     except WebSocketDisconnect:
+        pass
+    finally:
         if process:
             process.terminate()
