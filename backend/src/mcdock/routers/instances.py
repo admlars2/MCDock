@@ -3,6 +3,9 @@
 This version aligns with the current DockerService & pydantic models and now
 **includes the server.properties GET/PUT endpoints**.
 """
+import asyncio
+import threading
+
 from fastapi import (
     APIRouter,
     HTTPException,
@@ -175,24 +178,38 @@ async def send_command(instance_name: str, body: CommandRequest):
 async def websocket_logs(
     websocket: WebSocket,
     instance_name: str,
-    _ = Depends(require_ws_user),
+    _ = Security(require_ws_user),   # auth during handshake
 ):
     await websocket.accept()
-    process = await DockerService.stream_logs_async(instance_name)
+    proc = DockerService.stream_logs(instance_name) # Blocking
+
+    loop   = asyncio.get_running_loop()
+    queue  = asyncio.Queue[str]()
+
+    # ---------- thread: read docker logs ----------
+    def reader():
+        try:
+            for raw in proc.stdout:                       # blocking read
+                line = raw.decode(errors="ignore")
+                asyncio.run_coroutine_threadsafe(
+                    queue.put(line), loop
+                )
+        finally:
+            proc.stdout.close()
+
+    thread = threading.Thread(target=reader, daemon=True)
+    thread.start()
+    # ----------------------------------------------
 
     try:
         while True:
-            line = await process.stdout.readline()
-            if line:
-                await websocket.send_text(line.decode(errors="ignore"))
-            else:
-                break
-    
+            line = await queue.get()          # non-blocking for event-loop
+            await websocket.send_text(line)
     except WebSocketDisconnect:
         pass
     finally:
-        if process.returncode is None:
-            process.terminate()
+        proc.terminate()
+        thread.join(timeout=1)
 
 @ws_router.websocket("/{instance_name}/stats")
 async def websocket_stats(

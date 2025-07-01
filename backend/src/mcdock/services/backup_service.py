@@ -14,11 +14,12 @@ class BackupService:
     """
 
     root = Path(settings.MC_ROOT)
+    backups_root = root / "backups"
 
     @classmethod
     def _get_backup_dir(cls, instance_name: str) -> Path:
-        inst_dir = DockerService.get_instance_dir(instance_name)
-        backup_dir = inst_dir / "backups"
+        DockerService.get_instance_dir(instance_name)
+        backup_dir = cls.backups_root / instance_name
         backup_dir.mkdir(parents=True, exist_ok=True)
         return backup_dir
 

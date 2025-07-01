@@ -1,8 +1,6 @@
 import subprocess
 import shutil
 import yaml
-import asyncio
-import shlex
 from collections import OrderedDict
 from pathlib import Path
 from copy import deepcopy
@@ -312,14 +310,14 @@ class DockerService:
         cls.start(instance_name)
 
     @classmethod
-    async def stream_logs_async(cls, instance_name: str):
-        cmd = f"docker compose -f /path/{instance_name}/docker-compose.yml logs -f --no-color"
-        process = await asyncio.create_subprocess_exec(
-            *shlex.split(cmd),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
+    def stream_logs(cls, instance_name: str) -> subprocess.Popen:
+        path = cls.get_instance_dir(instance_name)
+        return subprocess.Popen(
+            ["docker","compose","logs","-f","--no-color"],
+            cwd=path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
         )
-        return process
     
     @classmethod
     def stream_stats(cls, instance_name: str) -> subprocess.Popen:
