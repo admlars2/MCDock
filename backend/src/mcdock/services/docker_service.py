@@ -203,7 +203,7 @@ class DockerService:
         if ports is not None:
             cls._check_ports(ports, exclude_instance=instance_name)
             srv["ports"] = [
-                f"{p.host_port}:{p.container_port}/{p.type}" for p in ports
+                f"{p.host_port}:{p.container_port}/{p.type.value}" for p in ports
             ]
 
         # --- write atomically -----------------------------------------

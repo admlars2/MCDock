@@ -13,9 +13,7 @@ import {
     createInstance,
     sendCommand,
     getCompose,
-    updateCompose,
-    getProperties,
-    updateProperties
+    updateCompose
 } from "../api/instances";
 import { useApiReady } from "./useApiReady";
 import type {
@@ -125,7 +123,7 @@ export function useSendCommand(
     });
 }
 
-export function useCompose(
+export function useGetCompose(
     name: string,
     opts?: UseQueryOptions<InstanceCompose>,
 ) {
@@ -136,7 +134,6 @@ export function useCompose(
     });
 }
 
-/** PUT /instances/:name/compose */
 export function useUpdateCompose(
     name: string,
     opts?: UseMutationOptions<ResponseMessage, unknown, InstanceUpdate>,
@@ -150,41 +147,6 @@ export function useUpdateCompose(
         qc.invalidateQueries({ queryKey: ["compose", name] });
         invalidateInstances(qc);           // status may have changed (RAM/EULA)
         opts?.onSuccess?.(d, patch, ctx);
-        },
-        ...opts,
-    });
-}
-
-/* ------------------------------------------------------------------ */
-/* 2.  server.properties                                               */
-/* ------------------------------------------------------------------ */
-
-/** GET /instances/:name/properties */
-export function useProperties(
-    name: string,
-    opts?: UseQueryOptions<Record<string, string>>,
-) {
-    return useQuery<Record<string, string>>({
-        queryKey: ["properties", name],
-        queryFn : () => getProperties(name),
-        ...opts,
-    });
-}
-
-/** PUT /instances/:name/properties */
-export function useUpdateProperties(
-    name: string,
-    opts?: UseMutationOptions<ResponseMessage, unknown, Record<string, string>>,
-) {
-    const qc = useQueryClient();
-
-    return useMutation<ResponseMessage, unknown, Record<string, string>>({
-        mutationKey: ["updateProperties", name],
-        mutationFn : (props) => updateProperties(name, props),
-        onSuccess  : (d, newProps, ctx) => {
-        qc.invalidateQueries({ queryKey: ["properties", name] });
-        // properties changes rarely affect /instances list, so no invalidateInstances()
-        opts?.onSuccess?.(d, newProps, ctx);
         },
         ...opts,
     });

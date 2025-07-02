@@ -1,36 +1,34 @@
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import {
-  useInstances,
-  useStartInstance,
-  useStopInstance,
-  useRestartInstance,
+    useInstances,
+    useStartInstance,
+    useStopInstance,
+    useRestartInstance,
 } from "../hooks/useInstances";
-import LogsPanel from "../components/instance/LogPanel";
+import LogsPanel  from "../components/instance/LogPanel";
 import StatsPanel from "../components/instance/StatsPanel";
 
 export default function InstancePage() {
     const { name } = useParams<{ name: string }>();
 
     /* data & mutations */
-    const { data, isLoading, isError } = useInstances();          // ← make sure this query refetches (staleTime=0 or refetchInterval)
-    const instance  = data?.find((i) => i.name === name);
+    const { data, isLoading, isError } = useInstances();
+    const instance   = data?.find((i) => i.name === name);
     const startMut   = useStartInstance();
     const stopMut    = useStopInstance();
     const restartMut = useRestartInstance();
 
-    /* open / close socket whenever `isRunning` changes */
     const isRunning = instance?.status === "running";
 
-
-    /* render guards */
-    if (isLoading)  return <p className="p-6">Loading instance…</p>;
+    /* guards */
+    if (isLoading) return <p className="p-6">Loading instance…</p>;
     if (isError || !instance)
         return <p className="p-6 text-red-600">Instance not found.</p>;
 
     /* UI */
     return (
         <div className="p-6 w-max space-y-6 text-white">
-        {/* header & controls */}
+        {/* header + controls */}
         <div className="flex flex-wrap items-center gap-4">
             <h1 className="text-2xl font-semibold flex-grow">{instance.name}</h1>
 
@@ -59,10 +57,18 @@ export default function InstancePage() {
             >
             {restartMut.isPending ? "Restarting…" : "Restart"}
             </button>
+
+            {/* NEW: edit button */}
+            <Link
+            to={`/instances/compose/${instance.name}`}
+            className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
+            >
+            Edit Compose
+            </Link>
         </div>
 
-        {/* live logs */}
-        <LogsPanel instanceName={instance.name} isRunning={isRunning}/>
+        {/* panels */}
+        <LogsPanel  instanceName={instance.name} isRunning={isRunning} />
         <StatsPanel instanceName={instance.name} isRunning={isRunning} />
         </div>
     );

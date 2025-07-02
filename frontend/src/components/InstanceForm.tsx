@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { InstanceCompose, EnvVar, PortBinding } from "../api/types";
 
 interface InstanceFormProps {
@@ -16,6 +16,8 @@ export function InstanceForm({
     saving,
     disableName = false,
 }: InstanceFormProps) {
+    const navigate = useNavigate();
+
     /* ───────── state ───────── */
     const [form, setForm] = useState(() => ({
         name  : initial.name,
@@ -124,6 +126,7 @@ export function InstanceForm({
                     checked={form.eula}
                     onChange={handleChange}
                     className="accent-green-500"
+                    required
                     />
                 <label>
                     Accept Mojang{" "}
@@ -142,7 +145,19 @@ export function InstanceForm({
             {/* env vars */}
             <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Environment variables</h2>
+                <h2 className="font-semibold flex items-center gap-2">
+                    Environment variables
+                    {/* help badge */}
+                    <a
+                        href="https://docker-minecraft-server.readthedocs.io/en/latest/variables/"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Click to view allowed variables"
+                        className="inline-block w-5 h-5 leading-5 text-center rounded-full bg-gray-600 hover:bg-gray-500"
+                    >
+                        ?
+                    </a>
+                </h2>
                 <button
                 type="button"
                 onClick={addEnvRow}
@@ -185,7 +200,21 @@ export function InstanceForm({
             {/* port bindings */}
             <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <h2 className="font-semibold">Port bindings</h2>
+                <h2 className="font-semibold flex items-center gap-2">
+                    Port bindings
+                    {/* help badge had to make the title work using actual new lines 😭*/}
+                    <a
+                        href="https://docker-minecraft-server.readthedocs.io/en/latest/advanced-usage/#network-ports"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title={`Default game port: 25565/TCP
+RCON (remote console): 25575/TCP
+Expose both if you need them outside Docker`}
+                        className="inline-block w-5 h-5 leading-5 text-center rounded-full bg-gray-600 hover:bg-gray-500"
+                    >
+                        ?
+                    </a>
+                </h2>
                 <button
                 type="button"
                 onClick={addPortRow}
@@ -243,12 +272,12 @@ export function InstanceForm({
 
             {/* actions */}
             <div className="flex gap-3 justify-end">
-            <Link
-                to="/instances"
+            <button
+                onClick={() => navigate(-1)}
                 className="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500"
             >
-                Cancel
-            </Link>
+                Back
+            </button>
             <button
                 disabled={saving}
                 className="px-4 py-2 rounded bg-green-600 hover:bg-green-700 disabled:opacity-50"

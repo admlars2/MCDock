@@ -1,6 +1,6 @@
 import type { InstanceCompose } from "./types"
 
-export const STARTER_COMPOSE: InstanceCompose = {
+export const COMPOSE_TEMPLATE: InstanceCompose = {
     name: "mc-server",
     image: "itzg/minecraft-server:latest",
     eula: false,

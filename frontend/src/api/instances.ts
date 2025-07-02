@@ -48,18 +48,6 @@ export const updateCompose = (name: string, patch: InstanceUpdate) =>
         json: patch,
     });
 
-export const getProperties = (name: string) =>
-    apiFetch<Record<string, string>>(`/instances/${name}/properties`);
-
-export const updateProperties = (
-    name: string,
-    props: Record<string, string>,
-) =>
-    apiFetch<ResponseMessage>(`/instances/${name}/properties`, {
-        method: 'PUT',
-        json: props,
-    });
-
 /* -------------------------------------------------------------------------- */
 /*  Template & instance creation                                              */
 /* -------------------------------------------------------------------------- */
