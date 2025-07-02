@@ -29,9 +29,6 @@ export const restartInstance = (name: string) =>
         method: "POST",
     });
 
-export const deleteInstance = (name: string) =>
-    apiFetch<void>(`/instances/${name}`, { method: "DELETE" });
-
 export const sendCommand = (name: string, command: string) =>
     apiFetch<ResponseMessage>(`/instances/${name}/cmd`, {
         method: "POST",
@@ -58,7 +55,7 @@ export const updateProperties = (
     name: string,
     props: Record<string, string>,
 ) =>
-    apiFetch(`/instances/${name}/properties`, {
+    apiFetch<ResponseMessage>(`/instances/${name}/properties`, {
         method: 'PUT',
         json: props,
     });

@@ -1,22 +1,28 @@
 import {
-  useQuery,
-  useMutation,
-  useQueryClient,
-  type UseMutationOptions,
+    useQuery,
+    useMutation,
+    useQueryClient,
+    type UseQueryOptions,
+    type UseMutationOptions,
 } from "@tanstack/react-query";
 import {
-  listInstances,
-  startInstance,
-  stopInstance,
-  restartInstance,
-  deleteInstance,
-  createInstance,
+    listInstances,
+    startInstance,
+    stopInstance,
+    restartInstance,
+    createInstance,
+    sendCommand,
+    getCompose,
+    updateCompose,
+    getProperties,
+    updateProperties
 } from "../api/instances";
 import { useApiReady } from "./useApiReady";
 import type {
-  InstanceInfo,
-  ResponseMessage,
-  InstanceCompose,
+    InstanceInfo,
+    ResponseMessage,
+    InstanceCompose,
+    InstanceUpdate
 } from "../api/types";
 
 /* ─────────────────── GET list ─────────────────── */
@@ -69,7 +75,7 @@ export function useStopInstance(
     });
     }
 
-/* ---- restart (optional) ---- */
+/* ---- restart ---- */
 export function useRestartInstance(
     opts?: UseMutationOptions<ResponseMessage, unknown, string>,
 ) {
@@ -77,22 +83,6 @@ export function useRestartInstance(
     return useMutation({
         mutationKey: ["restartInstance"],
         mutationFn: restartInstance,
-        onSuccess: (d, n, ctx) => {
-        invalidateInstances(qc);
-        opts?.onSuccess?.(d, n, ctx);
-        },
-        ...opts,
-    });
-}
-
-/* ---- delete (optional) ---- */
-export function useDeleteInstance(
-    opts?: UseMutationOptions<void, unknown, string>,
-) {
-    const qc = useQueryClient();
-    return useMutation({
-        mutationKey: ["deleteInstance"],
-        mutationFn: deleteInstance,
         onSuccess: (d, n, ctx) => {
         invalidateInstances(qc);
         opts?.onSuccess?.(d, n, ctx);
@@ -112,6 +102,89 @@ export function useCreateInstance(
         onSuccess: (d, payload, ctx) => {
         invalidateInstances(qc);               // refresh list on success
         opts?.onSuccess?.(d, payload, ctx);
+        },
+        ...opts,
+    });
+}
+
+/* ---- send command ---- */
+export function useSendCommand(
+    instanceName: string,
+    opts?: UseMutationOptions<ResponseMessage, unknown, string>,
+    ) {
+    const qc = useQueryClient();
+
+    return useMutation<ResponseMessage, unknown, string>({
+        mutationKey: ["sendCommand", instanceName],
+        mutationFn : (command) => sendCommand(instanceName, command),
+        onSuccess  : (d, v, ctx) => {
+        invalidateInstances(qc);
+        opts?.onSuccess?.(d, v, ctx);
+        },
+        ...opts,
+    });
+}
+
+export function useCompose(
+    name: string,
+    opts?: UseQueryOptions<InstanceCompose>,
+) {
+    return useQuery<InstanceCompose>({
+        queryKey: ["compose", name],
+        queryFn : () => getCompose(name),
+        ...opts,
+    });
+}
+
+/** PUT /instances/:name/compose */
+export function useUpdateCompose(
+    name: string,
+    opts?: UseMutationOptions<ResponseMessage, unknown, InstanceUpdate>,
+) {
+    const qc = useQueryClient();
+
+    return useMutation<ResponseMessage, unknown, InstanceUpdate>({
+        mutationKey: ["updateCompose", name],
+        mutationFn : (patch) => updateCompose(name, patch),
+        onSuccess  : (d, patch, ctx) => {
+        qc.invalidateQueries({ queryKey: ["compose", name] });
+        invalidateInstances(qc);           // status may have changed (RAM/EULA)
+        opts?.onSuccess?.(d, patch, ctx);
+        },
+        ...opts,
+    });
+}
+
+/* ------------------------------------------------------------------ */
+/* 2.  server.properties                                               */
+/* ------------------------------------------------------------------ */
+
+/** GET /instances/:name/properties */
+export function useProperties(
+    name: string,
+    opts?: UseQueryOptions<Record<string, string>>,
+) {
+    return useQuery<Record<string, string>>({
+        queryKey: ["properties", name],
+        queryFn : () => getProperties(name),
+        ...opts,
+    });
+}
+
+/** PUT /instances/:name/properties */
+export function useUpdateProperties(
+    name: string,
+    opts?: UseMutationOptions<ResponseMessage, unknown, Record<string, string>>,
+) {
+    const qc = useQueryClient();
+
+    return useMutation<ResponseMessage, unknown, Record<string, string>>({
+        mutationKey: ["updateProperties", name],
+        mutationFn : (props) => updateProperties(name, props),
+        onSuccess  : (d, newProps, ctx) => {
+        qc.invalidateQueries({ queryKey: ["properties", name] });
+        // properties changes rarely affect /instances list, so no invalidateInstances()
+        opts?.onSuccess?.(d, newProps, ctx);
         },
         ...opts,
     });

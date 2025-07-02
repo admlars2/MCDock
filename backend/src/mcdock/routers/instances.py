@@ -5,15 +5,18 @@ This version aligns with the current DockerService & pydantic models and now
 """
 import asyncio
 import threading
+import re
+import json
+import logging
 
 from fastapi import (
     APIRouter,
     HTTPException,
     WebSocket,
     WebSocketDisconnect,
-    Security,
-    Depends
+    Security
 )
+from mcipc.rcon.exceptions import UnknownCommand
 
 from .models import (
     ResponseMessage,
@@ -26,6 +29,10 @@ from ..services.docker_service import DockerService
 from ..services.models import Instance
 from ..services.rcon_service import RconService
 from .security import require_user, require_ws_user, UNAUTHORIZED
+
+
+logger = logging.getLogger(__name__)
+
 
 router = APIRouter(prefix="/instances", dependencies=[Security(require_user)], responses=UNAUTHORIZED)
 ws_router = APIRouter(prefix="/instances", responses=UNAUTHORIZED)
@@ -165,10 +172,16 @@ async def send_command(instance_name: str, body: CommandRequest):
     cmd = body.command.strip()
     if not cmd:
         raise HTTPException(status_code=400, detail="Missing 'command' field")
+
     try:
         output = RconService.execute(instance_name=instance_name, command=cmd)
-    except Exception as e:
+
+    except UnknownCommand as e:                        # bad / unknown command
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+    except Exception as e:                            # timeouts, I/O, etc.
         raise HTTPException(status_code=500, detail=str(e)) from e
+
     return ResponseMessage(message=output)
 
 # ---------------------------------------------------------------------------
@@ -213,18 +226,52 @@ async def websocket_logs(
 
 @ws_router.websocket("/{instance_name}/stats")
 async def websocket_stats(
-    ws: WebSocket, 
+    websocket: WebSocket,
     instance_name: str,
-    _ = Security(require_ws_user)
+    _ = Security(require_ws_user),
 ):
-    await ws.accept()
-    process = None
+    await websocket.accept()
+    proc = DockerService.stream_stats(instance_name)
+
+    loop   = asyncio.get_running_loop()
+    queue  = asyncio.Queue[str]()
+
+    # background thread: push each line into the asyncio queue
+    def reader():
+        try:
+            for raw in proc.stdout:
+                asyncio.run_coroutine_threadsafe(queue.put(raw), loop)
+        finally:
+            proc.stdout.close()
+
+    threading.Thread(target=reader, daemon=True).start()
+
+    # regex to pull the numeric part out of "742.6MiB"
+    mem_re = re.compile(r"([\d\.]+)([KMG]i?)B", re.I)
+    ansi_re = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+    unit_factor = {"Ki": 1/1024, "Mi": 1, "Gi": 1024}
+
     try:
-        process = DockerService.stream_stats(instance_name)
-        for raw_line in process.stdout:
-            await ws.send_text(raw_line.decode(errors="ignore"))
+        while True:
+            raw = await queue.get()
+
+            try:
+                clean = ansi_re.sub("", raw).strip()
+                item = json.loads(clean)
+                cpu = float(item["CPUPerc"].rstrip("%"))
+
+                # "742.6MiB / 3.7GiB"  -> 742.6 MiB
+                mem_used = item["MemUsage"].split("/")[0].strip()
+                val, unit = mem_re.match(mem_used).groups()  # e.g. ("742.6", "Mi")
+                mem_mib = float(val) * unit_factor[unit]
+
+                await websocket.send_text(
+                    json.dumps({"cpu": cpu, "mem": round(mem_mib, 1)})
+                )
+            except Exception:
+                # ignore malformed lines
+                continue
     except WebSocketDisconnect:
         pass
     finally:
-        if process:
-            process.terminate()
+        proc.terminate()

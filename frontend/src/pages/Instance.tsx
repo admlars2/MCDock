@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   useInstances,
@@ -6,7 +5,8 @@ import {
   useStopInstance,
   useRestartInstance,
 } from "../hooks/useInstances";
-import { openLogs } from "../api/instances";
+import LogsPanel from "../components/instance/LogPanel";
+import StatsPanel from "../components/instance/StatsPanel";
 
 export default function InstancePage() {
     const { name } = useParams<{ name: string }>();
@@ -18,47 +18,9 @@ export default function InstancePage() {
     const stopMut    = useStopInstance();
     const restartMut = useRestartInstance();
 
-    /* logs */
-    const [logs, setLogs] = useState<string[]>([]);
-    const socketRef = useRef<WebSocket | null>(null);
-    const logRef    = useRef<HTMLDivElement>(null);
-    const push = (line: string) => setLogs(prev => [...prev.slice(-199), line]);
-
     /* open / close socket whenever `isRunning` changes */
     const isRunning = instance?.status === "running";
 
-
-    useEffect(() => {
-        if (!name) return;
-
-        if (restartMut.isPending) {
-            socketRef.current?.close();
-            socketRef.current = null;
-            push("-- restart initiated --");
-            return;
-        }
-
-        // If server is running, open (or reopen) the socket
-        if (isRunning) {
-            const ws = openLogs(name);
-            socketRef.current = ws;
-
-            ws.onmessage = ev  => push(ev.data);
-            ws.onerror   = () => push("[log stream error]");
-
-            return () => ws.close();
-        }
-
-        // If the instance is *not* running, close any existing socket & clear logs
-        socketRef.current?.close();
-        socketRef.current = null;
-        push("-- server stopped --");
-    }, [name, isRunning, restartMut.isPending]);                      // <- depend on running state
-
-    /* auto-scroll */
-    useEffect(() => {
-        logRef.current?.scrollTo(0, logRef.current.scrollHeight);
-    }, [logs]);
 
     /* render guards */
     if (isLoading)  return <p className="p-6">Loading instance…</p>;
@@ -100,18 +62,8 @@ export default function InstancePage() {
         </div>
 
         {/* live logs */}
-        <div
-            ref={logRef}
-            className="h-64 overflow-y-auto bg-black text-green-400 font-mono text-sm rounded p-3 border border-gray-700"
-        >
-            {logs.length === 0 ? (
-            <p className="text-gray-500">
-                {isRunning ? "Waiting for logs…" : "Server is offline."}
-            </p>
-            ) : (
-            logs.map((line, i) => <div key={i}>{line}</div>)
-            )}
-        </div>
+        <LogsPanel instanceName={instance.name} isRunning={isRunning}/>
+        <StatsPanel instanceName={instance.name} isRunning={isRunning} />
         </div>
     );
 }

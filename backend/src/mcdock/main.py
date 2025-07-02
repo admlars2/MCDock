@@ -1,6 +1,8 @@
 import logging
+import mcdock.core.logging_config # Configures logging
 
 from fastapi import FastAPI, APIRouter, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -8,6 +10,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .core.config import settings
 from .routers.backups import router as backup_router
@@ -22,11 +25,30 @@ logger = logging.getLogger(__name__)
 def create_app() -> FastAPI:
     """
     Create and configure the FastAPI application."""
+    logger.info("Starting up")
+
     app = FastAPI(
         title="MCDock Control Panel",
         description="Manage Docker-based Minecraft servers via REST + WebSockets",
         version="0.1.0",
     )
+
+    # ── handler: HTTPException, but only 5xx codes ──────────────
+    async def log_http_5xx(request: Request, exc: StarletteHTTPException):
+        if exc.status_code >= 500:
+            logger.error(
+                "HTTP %s on %s %s – %s",
+                exc.status_code, request.method, request.url.path, exc.detail,
+                exc_info=True,
+            )
+            return JSONResponse(status_code=500,
+                                content={"detail": "Internal server error"})
+
+        # return the original 4xx without re-raising
+        return JSONResponse(status_code=exc.status_code,
+                            content={"detail": exc.detail})
+
+    app.add_exception_handler(StarletteHTTPException, log_http_5xx)
 
     # Rate Limiter
     limiter = Limiter(

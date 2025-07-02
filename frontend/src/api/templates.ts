@@ -62,6 +62,11 @@ export const STARTER_COMPOSE: InstanceCompose = {
             type: "tcp"
         },
         {
+            host_port: 25575,
+            container_port: 25575,
+            type: "tcp"
+        },
+        {
             host_port: 24454,
             container_port: 24454,
             type: "udp"

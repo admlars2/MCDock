@@ -10,6 +10,7 @@ from ..core.config import settings
 from ..core.models import EnvVar, PortBinding, ConnectionType, InstanceStatus
 from ..templates.compose import COMPOSE_TEMPLATE
 
+EXCLUDE_DIRS = {"mcdock-logs", "backups"}
 
 class DockerService:
     """
@@ -21,7 +22,7 @@ class DockerService:
     def get_instance_dirs(cls) -> list[Path]:
         if not cls.root.exists() or not cls.root.is_dir():
             raise ValueError(f"MC_ROOT path not found: {settings.MC_ROOT}")
-        return [p for p in cls.root.iterdir() if p.is_dir()]
+        return [p for p in cls.root.iterdir() if p.is_dir() and p.name not in EXCLUDE_DIRS]
 
     @classmethod
     def get_instance_dir(cls, instance_name: str) -> Path:
@@ -322,24 +323,30 @@ class DockerService:
     @classmethod
     def stream_stats(cls, instance_name: str) -> subprocess.Popen:
         """
-        Return a subprocess that streams live Docker stats for the given instance.
+        Spawn `docker stats` in streaming mode, one JSON object per line.
         """
         path = cls.get_instance_dir(instance_name)
+
+        # 1. get container ID
         result = subprocess.run(
             ["docker", "compose", "ps", "-q"],
             cwd=path,
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
-        container_ids = result.stdout.strip().splitlines()
-        if not container_ids:
-            raise RuntimeError(f"No running containers for instance: {instance_name}")
-        # Stream stats for the first container
+        cid = result.stdout.strip().splitlines()[0]
+
+        # 2. stream stats, format each line as JSON
         return subprocess.Popen(
-            ["docker", "stats", container_ids[0]],
+            [
+                "docker", "stats", cid,
+                "--no-trunc",
+                "--format", "{{json .}}",   # every line is a JSON dict
+            ],
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
+            stderr=subprocess.STDOUT,
+            text=True,
         )
 
     @classmethod
