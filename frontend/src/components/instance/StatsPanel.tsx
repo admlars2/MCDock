@@ -32,7 +32,6 @@ export default function StatsPanel({ instanceName, isRunning }: Props) {
         ws.onmessage = ev => {
             try {
             const { cpu, mem } = JSON.parse(ev.data);
-            console.log(ev)
             setStats({ cpu, mem });
             } catch {
             /* ignore malformed frames */

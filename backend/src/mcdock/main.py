@@ -1,5 +1,6 @@
 import logging
 import mcdock.core.logging_config # Configures logging
+from datetime import UTC
 
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse
@@ -17,6 +18,7 @@ from .routers.backups import router as backup_router
 from .routers.instances import router as instances_router, ws_router as instances_ws_router
 from .routers.schedules import router as schedule_router
 from .routers.auth import router as auth_router
+from .services.scheduler import build_scheduler
 
 
 logger = logging.getLogger(__name__)
@@ -61,11 +63,10 @@ def create_app() -> FastAPI:
     app.add_middleware(SlowAPIMiddleware)
 
     # Job Scheduler
-    scheduler = AsyncIOScheduler({
-        'default': SQLAlchemyJobStore(url='sqlite:///jobs.sqlite')
-    })
-    scheduler.start()
+    scheduler = build_scheduler()
     app.state.scheduler = scheduler
+    scheduler.start()
+    logger.info("APScheduler started with %d jobs", len(scheduler.get_jobs(jobstore="default")))
 
     # CORS
     origins = [str(o).rstrip("/") for o in settings.CORS_ORIGINS]

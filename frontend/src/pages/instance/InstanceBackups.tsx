@@ -9,7 +9,22 @@ import {
 
 type Mode = "restore" | "delete";
 
-export default function InstanceBackupsPage() {
+function groupByBucket(list: string[]) {
+    const map: Record<string, string[]> = {};
+    for (const path of list) {
+        const [bucket, rest] = path.split(/[/\\](.+)/); // works on \ or /
+        (map[bucket] ??= []).push(rest);
+    }
+    // lexicographic newest-first inside each bucket
+    Object.values(map).forEach(arr => arr.sort().reverse());
+    // predictable bucket order (triggered first, then alpha)
+    const orderedKeys = Object.keys(map).sort((a, b) =>
+        a === "triggered" ? -1 : b === "triggered" ? 1 : a.localeCompare(b)
+    );
+    return orderedKeys.map(k => [k, map[k]] as const);
+}
+
+export default function InstanceBackups() {
     const { name } = useParams<{ name: string }>();
     const navigate = useNavigate();
 
@@ -66,35 +81,46 @@ export default function InstanceBackupsPage() {
             <p className="text-gray-400">No backups yet.</p>
         )}
 
-        {backups?.length! > 0 && (
-            <ul className="space-y-2">
-            {backups!.map((file) => (
-                <li
-                key={file}
-                className="flex items-center justify-between bg-gray-800 rounded p-3"
-                >
-                <span className="truncate max-w-[60%]">{file}</span>
+        {backups && backups.length > 0 && (
+        <div className="space-y-4">
+            {groupByBucket(backups).map(([bucket, files]) => (
+            <details key={bucket} className="bg-gray-800 rounded">
+                <summary className="cursor-pointer px-4 py-2 select-none
+                                    flex justify-between items-center">
+                <span className="capitalize">{bucket}</span>
+                <span className="text-xs text-gray-400">{files.length} file(s)</span>
+                </summary>
 
-                <div className="flex gap-2">
-                    <button
-                    onClick={() => confirm(file, "restore")}
-                    disabled={restoreMut.isPending}
-                    className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 disabled:opacity-50"
-                    >
-                    Restore
-                    </button>
+                {/* one bucket ------------------------------------------------ */}
+                <ul className="space-y-2 p-4 pt-3">
+                {files.map(file => (
+                    <li key={file}
+                        className="flex items-center justify-between bg-gray-900
+                                rounded p-3 text-sm">
+                    <span className="truncate max-w-[60%]">{file}</span>
 
-                    <button
-                    onClick={() => confirm(file, "delete")}
-                    disabled={deleteMut.isPending}
-                    className="px-3 py-1 rounded bg-red-600 hover:bg-red-700 disabled:opacity-50"
-                    >
-                    Delete
-                    </button>
-                </div>
-                </li>
+                    <div className="flex gap-2">
+                        <button
+                        onClick={() => confirm(`${bucket}/${file}`, "restore")}
+                        disabled={restoreMut.isPending}
+                        className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700
+                                    disabled:opacity-50">
+                        Restore
+                        </button>
+                        <button
+                        onClick={() => confirm(`${bucket}/${file}`, "delete")}
+                        disabled={deleteMut.isPending}
+                        className="px-3 py-1 rounded bg-red-600 hover:bg-red-700
+                                    disabled:opacity-50">
+                        Delete
+                        </button>
+                    </div>
+                    </li>
+                ))}
+                </ul>
+            </details>
             ))}
-            </ul>
+        </div>
         )}
 
         {/* modal */}

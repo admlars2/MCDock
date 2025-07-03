@@ -10,19 +10,19 @@ from ..core.config import settings
 from ..core.models import EnvVar, PortBinding, ConnectionType, InstanceStatus
 from ..templates.compose import COMPOSE_TEMPLATE
 
-EXCLUDE_DIRS = {"mcdock-logs", "backups"}
-
 class DockerService:
     """
     Service for managing Docker-compose based Minecraft instances.
     """
-    root = Path(settings.MC_ROOT)
+    mc_root = Path(settings.MC_ROOT)
+    root = Path(settings.MC_ROOT) / "servers"
 
     @classmethod
     def get_instance_dirs(cls) -> list[Path]:
-        if not cls.root.exists() or not cls.root.is_dir():
+        if not cls.mc_root.exists() or not cls.mc_root.is_dir():
             raise ValueError(f"MC_ROOT path not found: {settings.MC_ROOT}")
-        return [p for p in cls.root.iterdir() if p.is_dir() and p.name not in EXCLUDE_DIRS]
+        cls.root.mkdir(exist_ok=True, parents=True)
+        return [p for p in cls.root.iterdir() if p.is_dir()]
 
     @classmethod
     def get_instance_dir(cls, instance_name: str) -> Path:

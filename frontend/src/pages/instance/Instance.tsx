@@ -8,7 +8,7 @@ import {
 import LogsPanel  from "../../components/instance/LogPanel";
 import StatsPanel from "../../components/instance/StatsPanel";
 
-export default function InstancePage() {
+export default function Instance() {
     const { name } = useParams<{ name: string }>();
 
     /* data & mutations */
@@ -60,7 +60,7 @@ export default function InstancePage() {
 
             <Link
                 to={`/instances/${instance.name}/compose`}
-                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
+                className="px-4 py-2 bg-gray-500 rounded hover:bg-gray-600"
             >
                 Edit Compose
             </Link>
@@ -70,6 +70,13 @@ export default function InstancePage() {
                 className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700"
             >
                 Backups
+            </Link>
+
+            <Link
+                to={`/instances/${instance.name}/schedules`}
+                className="px-4 py-2 bg-blue-400 rounded hover:bg-blue-500"
+            >
+                Schedules
             </Link>
         </div>
 

@@ -1,10 +1,12 @@
-# routers/schedules.py
+import logging
+
 from hashlib import blake2s
 from datetime import UTC
 from fastapi import APIRouter, HTTPException, Request, Security
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.jobstores.base import JobLookupError
+from apscheduler.job import Job
 
 from .models import ResponseMessage, CronSchedule, ScheduledJob
 from ..services.backup_service import BackupService
@@ -16,6 +18,8 @@ router = APIRouter(
     dependencies=[Security(require_user)],
     responses=UNAUTHORIZED,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _validate_instance(name: str) -> None:
@@ -57,25 +61,34 @@ def _cron_to_bucket(cron_spec: str) -> str:
 
     return _hash_tag(cron_spec)
 
+def _cron_from_trigger(trigger: CronTrigger) -> str:
+    try:
+        options = [str(f) for f in trigger.fields if not f.is_default]
+        return " ".join(reversed(options))
+    except:
+        return str(trigger)
 
-@router.get("/list", response_model=list[ScheduledJob])
-async def list_schedules(request: Request):
+@router.get("/{instance}", response_model=list[ScheduledJob])
+async def list_instance_schedules(instance: str, request: Request):
     sched: AsyncIOScheduler = request.app.state.scheduler
-    jobs = sched.get_jobs()
-    out: list[ScheduledJob] = []
 
-    for job in jobs:
-        trig = job.trigger
-        spec = trig.cron_expression if isinstance(trig, CronTrigger) else str(trig)
-        out.append(
-            ScheduledJob(
-                id=job.id,
-                schedule=spec,
-                next_run=(job.next_run_time.astimezone(UTC).isoformat()
-                          if job.next_run_time else None),
-            )
+    all_jobs: list[Job] = sched.get_jobs()
+
+    jobs = [
+        j for j in all_jobs
+        if j.id.startswith(f"cron_backup_{instance}")
+        or j.id.startswith(f"cron_restart_{instance}")
+    ]
+
+    return [
+        ScheduledJob(
+            id=job.id,
+            schedule=_cron_from_trigger(job.trigger),
+            next_run=(job.next_run_time.isoformat()
+                      if job.next_run_time else None),
         )
-    return out
+        for job in jobs
+    ]
 
 
 @router.post(
@@ -115,7 +128,7 @@ async def schedule_recurring_backup(
         args=[instance, bucket],
         id=job_id,
         replace_existing=True,
-        max_instances=1,
+        max_instances=1
     )
 
     # 3) respond
@@ -153,7 +166,7 @@ async def schedule_recurring_restart(
         args=[instance],
         id=job_id,
         replace_existing=True,
-        max_instances=1,
+        max_instances=1
     )
     return ResponseMessage(
         message=f"Recurring restart scheduled for '{instance}' as job '{job_id}'."

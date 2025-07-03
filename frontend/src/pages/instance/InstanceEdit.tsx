@@ -7,7 +7,7 @@ import {
 import { InstanceForm } from "../../components/InstanceForm";
 import type { InstanceCompose, InstanceUpdate } from "../../api/types";
 
-export default function EditInstance() {
+export default function InstanceEdit() {
     const { name } = useParams<{ name: string }>();
     const nav = useNavigate();
 

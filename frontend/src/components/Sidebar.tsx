@@ -52,13 +52,6 @@ export default function Sidebar() {
                 >
                 🗄️ <span>Instances</span>
                 </Link>
-
-                <Link
-                to="/schedules"
-                className={`${linkBase} ${pathname.startsWith("/schedules") ? activeCls : inactive}`}
-                >
-                ⏰ <span>Schedules</span>
-                </Link>
             </nav>
 
             {/* Auth & API status footer */}
