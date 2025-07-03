@@ -1,85 +1,77 @@
+# routers/backups.py
 import uuid
-
 from datetime import datetime, UTC
-from fastapi import (
-    APIRouter, HTTPException, 
-    Request, Security
-)
+
+from fastapi import APIRouter, HTTPException, Request, Security
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.date import DateTrigger
 
-from .models import ResponseMessage
 from ..services.backup_service import BackupService
 from ..services.docker_service import DockerService
+from .models import ResponseMessage
 from .security import require_user, UNAUTHORIZED
 
+router = APIRouter(
+    prefix="/backups",
+    dependencies=[Security(require_user)],
+    responses=UNAUTHORIZED,
+)
 
-router = APIRouter(prefix="/backups", dependencies=[Security(require_user)], responses=UNAUTHORIZED)
-
-
-@router.get("/{instance_name}", response_model=list[str])
-async def list_backups(instance_name: str):
-    """
-    List the last BACKUP_RETENTION backups for an instance.
-    """
+# ────────────────────────────────────────────────────────────────
+# helpers
+# ────────────────────────────────────────────────────────────────
+def _validate_instance(name: str) -> None:
     try:
-        files = BackupService.list_backups(instance_name=instance_name)
-    except FileNotFoundError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-    return files
-
-
-@router.post("/{instance_name}/trigger", status_code=202, response_model=ResponseMessage)
-async def trigger_backup(
-    instance_name: str,
-    request: Request
-):
-    # 1) validate the instance exists (your existing helper)
-    try:
-        DockerService.get_instance_dir(instance_name)
+        DockerService.get_instance_dir(name)
     except FileNotFoundError:
-        raise HTTPException(404, f"No such instance: {instance_name}")
+        raise HTTPException(404, f"No such instance: {name}")
 
-    # 2) schedule the actual backup method to run AFTER sending the 202
+
+@router.get("/{instance}", response_model=list[str])
+async def list_backups(instance: str):
+    return BackupService.list_backups(instance)
+
+
+@router.put("/{instance}/trigger", status_code=202, response_model=ResponseMessage)
+async def trigger_backup(instance: str, request: Request):
+    _validate_instance(instance)
 
     sched: AsyncIOScheduler = request.app.state.scheduler
-    job_id = f"backup_{instance_name}_{uuid.uuid4().hex}"
     sched.add_job(
-        func=BackupService.trigger_backup,
-        trigger=DateTrigger(run_date=datetime.now(UTC)),
-        args=[instance_name],
-        id=job_id,
+        BackupService.trigger_backup,
+        DateTrigger(run_date=datetime.now(UTC)),
+        args=[instance, BackupService.triggered_dirname],
+        id=f"trigger_{instance}_{uuid.uuid4().hex}",
         max_instances=1,
     )
-
-    # 3) immediately return 202—client can poll list_backups or logs if you expose them
-    return ResponseMessage(message=f"Backup for '{instance_name}' is being created.")
+    return ResponseMessage(message=f"Backup for '{instance}' is being created.")
 
 
-@router.post("/{instance_name}/{filename}/restore", status_code=202, response_model=ResponseMessage)
-async def restore_backup(
-    instance_name: str, 
-    filename: str,
-    request: Request
-):
-    """
-    Trigger a restoration for a given instance and filename.
-    """
-    try:
-        DockerService.get_instance_dir(instance_name)
-    except FileNotFoundError:
-        raise HTTPException(404, f"No such instance: {instance_name}")
+@router.post(
+    "/{instance}/{bucket}/{filename}/restore",
+    status_code=202,
+    response_model=ResponseMessage,
+)
+async def restore_backup(instance: str, bucket: str, filename: str, request: Request):
+    _validate_instance(instance)
 
     sched: AsyncIOScheduler = request.app.state.scheduler
-    job_id = f"restore_{instance_name}_{filename}_{uuid.uuid4().hex}"
     sched.add_job(
-        func=BackupService.restore_backup,
-        trigger=DateTrigger(run_date=datetime.now(UTC)),
-        args=[instance_name, filename],
-        id=job_id,
+        BackupService.restore_backup,
+        DateTrigger(run_date=datetime.now(UTC)),
+        args=[instance, f"{bucket}/{filename}"],
+        id=f"restore_{uuid.uuid4().hex}",
         max_instances=1,
     )
+    return ResponseMessage(
+        message=f"Restoring '{bucket}/{filename}' for '{instance}' in background."
+    )
 
-    return ResponseMessage(message=f"Restoring '{filename}' for '{instance_name}' in background.")
+
+@router.delete("/{instance}/{bucket}/{filename}", status_code=204)
+async def delete_backup(instance: str, bucket: str, filename: str):
+    _validate_instance(instance)
+    try:
+        BackupService.delete_backup(instance, f"{bucket}/{filename}")
+    except FileNotFoundError:
+        raise HTTPException(404, "Backup not found.")

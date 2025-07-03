@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     JWT_TTL: timedelta = timedelta(hours=8)
 
     # Backup configuration
-    BACKUP_INTERVAL_MINUTES: int = 30
     BACKUP_RETENTION: int = 10
 
     model_config = SettingsConfigDict(

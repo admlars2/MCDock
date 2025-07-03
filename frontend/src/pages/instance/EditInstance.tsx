@@ -3,9 +3,9 @@ import { useNavigate, useParams } from "react-router-dom";
 import {
     useGetCompose,
     useUpdateCompose,
-} from "../hooks/useInstances";
-import { InstanceForm } from "../components/InstanceForm";
-import type { InstanceCompose, InstanceUpdate } from "../api/types";
+} from "../../hooks/useInstances";
+import { InstanceForm } from "../../components/InstanceForm";
+import type { InstanceCompose, InstanceUpdate } from "../../api/types";
 
 export default function EditInstance() {
     const { name } = useParams<{ name: string }>();

@@ -15,6 +15,16 @@ const AuthContext = createContext<AuthCtx | undefined>(undefined);
 const TOKEN_KEY = "panel.jwt";
 const USER_KEY  = "panel.user";
 
+function getExpiry(unverifiedJwt: string): number | null {
+    try {
+        const [, payload] = unverifiedJwt.split(".");
+        const decoded = JSON.parse(atob(payload));
+        return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+    } catch {
+        return null;
+    }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [token, setToken] = useState<string | null>(() => localStorage.getItem(TOKEN_KEY));
     const [user , setUser ] = useState<string | null>(() => localStorage.getItem(USER_KEY));
@@ -39,9 +49,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     /* when token changes, keep apiFetch up-to-date */
     useEffect(() => {
-        // tiny global hook point; adapt to how you attach the header
+        // keep global header helper in sync  ❱ both truthy & null
         (window as any).currentJwt = token ?? null;
+
+        // clear previous timer
+        let id: number | undefined;
+        if (!token) return () => clearTimeout(id);
+
+        const expMs = getExpiry(token);
+        if (expMs) {
+            const delay = expMs - Date.now();
+            id = window.setTimeout(logout, Math.max(delay, 0));
+        }
+        return () => clearTimeout(id);
     }, [token]);
+
 
     return (
         <AuthContext.Provider value={{ token, user, login, logout }}>

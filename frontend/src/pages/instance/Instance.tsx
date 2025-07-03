@@ -4,9 +4,9 @@ import {
     useStartInstance,
     useStopInstance,
     useRestartInstance,
-} from "../hooks/useInstances";
-import LogsPanel  from "../components/instance/LogPanel";
-import StatsPanel from "../components/instance/StatsPanel";
+} from "../../hooks/useInstances";
+import LogsPanel  from "../../components/instance/LogPanel";
+import StatsPanel from "../../components/instance/StatsPanel";
 
 export default function InstancePage() {
     const { name } = useParams<{ name: string }>();
@@ -58,12 +58,18 @@ export default function InstancePage() {
             {restartMut.isPending ? "Restarting…" : "Restart"}
             </button>
 
-            {/* NEW: edit button */}
             <Link
-            to={`/instances/compose/${instance.name}`}
-            className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
+                to={`/instances/${instance.name}/compose`}
+                className="px-4 py-2 bg-gray-600 rounded hover:bg-gray-500"
             >
-            Edit Compose
+                Edit Compose
+            </Link>
+
+            <Link
+                to={`/instances/${instance.name}/backups`}
+                className="px-4 py-2 bg-purple-600 rounded hover:bg-purple-700"
+            >
+                Backups
             </Link>
         </div>
 

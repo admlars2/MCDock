@@ -257,7 +257,7 @@ class DockerService:
             raise ValueError(500, f"Failed to write server.properties: {e}")
 
     @classmethod
-    def get_status(cls, instance_name: str) -> str:
+    def get_status(cls, instance_name: str) -> InstanceStatus:
         """
         Returns 'running' if any container is up, 'stopped' otherwise.
         """

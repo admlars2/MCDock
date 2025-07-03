@@ -1,7 +1,14 @@
+import logging
+import time
+
 from mcipc.rcon.je import Client
 
 from ..core.config import settings
 from .docker_service import DockerService
+
+
+logger = logging.getLogger(__name__)
+
 
 def _read_rcon_from_props(instance_name: str) -> tuple[str, int]:
     """
@@ -30,13 +37,21 @@ class RconService:
     host = settings.RCON_HOST    
 
     @classmethod
-    def execute(cls, instance_name: str, command: str) -> str:
+    def execute(cls, instance_name: str, command: str, *, retries: int = 3, delay: int = 0.5) -> str:
         """
         Send a command via RCON for the specified instance.
         """
         pwd, port = _read_rcon_from_props(instance_name)
 
-        # Connect and run the command
-        with Client(cls.host, port=port, timeout=5) as client:
-            client.login(pwd)
-            return client.run(command)
+        logger.info("Connecting to %s on %s", cls.host, port)
+
+        last_err = None
+        for _ in range(retries):
+            try:
+                with Client(cls.host, port=port, timeout=5) as client:
+                    client.login(pwd)
+                    return client.run(command)
+            except ConnectionRefusedError as e:
+                last_err = e
+                time.sleep(delay)
+        raise last_err
