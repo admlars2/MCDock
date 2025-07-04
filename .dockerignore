@@ -1,0 +1,17 @@
+# Node
+frontend/node_modules
+frontend/dist
+frontend/build
+
+# Python
+backend/.venv
+backend/.pytest_cache
+backend/tests
+**/__pycache__
+
+# Misc
+.git
+.vscode
+.idea
+*.env
+README.md

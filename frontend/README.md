@@ -1,69 +1,107 @@
-# React + TypeScript + Vite
+# MCDock Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the frontend for **MCDock**, a Minecraft server management platform. It provides a modern, responsive web UI for managing Minecraft server instances, backups, schedules, and more.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- Create, edit, and delete Minecraft server instances
+- Configure Docker images, memory, environment variables, and ports
+- Start, stop, and restart servers
+- Real-time log streaming and resource stats (CPU, memory)
+- Manage backups: create, restore, and delete
+- Schedule automated tasks (backups, restarts, etc.)
+- User authentication and session management
+- Responsive design with dark mode
 
-## Expanding the ESLint configuration
+## Tech Stack
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- **React 18** + **TypeScript**
+- **Vite** (build tool)
+- **Tailwind CSS** (styling)
+- **React Router** (routing)
+- **@tanstack/react-query** (data fetching/caching)
+- **WebSockets** (real-time logs/stats)
+- **ESLint** (linting)
 
-```js
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## Project Structure
 
-      // Remove tseslint.configs.recommended and replace with this
-      ...tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      ...tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      ...tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```
+frontend/
+├── src/
+│   ├── api/           # API clients and types
+│   ├── components/    # Reusable UI components
+│   ├── context/       # React context (auth, etc.)
+│   ├── hooks/         # Custom React hooks
+│   ├── layouts/       # Layout components
+│   ├── lib/           # Utility functions
+│   ├── pages/         # Route-level components
+│   ├── index.css      # Tailwind and global styles
+│   └── main.tsx       # App entrypoint
+├── public/
+├── index.html
+├── vite.config.ts
+└── README.md
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Getting Started
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+### Prerequisites
 
-export default tseslint.config([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+- Node.js 18+ and npm
+
+### Installation
+
+1. **Install dependencies:**
+   ```sh
+   npm install
+   ```
+
+2. **Set API base URL:**
+   - Create a `.env` file in `frontend/` with:
+     ```
+     VITE_API_BASE=http://localhost:8000
+     ```
+   - Adjust the URL if your backend runs elsewhere.
+
+3. **Start the development server:**
+   ```sh
+   npm run dev
+   ```
+   The app will be available at [http://localhost:5173](http://localhost:5173) by default.
+
+### Building for Production
+
+```sh
+npm run build
 ```
+The output will be in the `dist/` directory.
+
+## Usage
+
+- Log in with your credentials (set up via backend).
+- Manage server instances, view logs, stats, backups, and schedules.
+- All actions are performed via the backend API.
+
+## Environment Variables
+
+- `VITE_API_BASE`: Base URL for the backend API (default: `http://localhost:8000`).
+
+## Linting
+
+Run ESLint to check code quality:
+
+```sh
+npm run lint
+```
+
+## Testing
+
+No unit tests are included by default. You can add your own using your preferred React testing library.
+
+## License
+
+MIT License
+
+---
+
+**MCDock** © 2025

@@ -1,2 +1,6 @@
-.pytest_cache/
 minecraft/
+
+__pycache__/
+.pytest_cache/
+
+docker-compose.yml

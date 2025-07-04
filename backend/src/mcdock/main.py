@@ -1,12 +1,11 @@
 import logging
 import mcdock.core.logging_config # Configures logging
-from datetime import UTC
+from pathlib import Path
 
 from fastapi import FastAPI, APIRouter, Request
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
@@ -93,6 +92,11 @@ def create_app() -> FastAPI:
     api_router.include_router(instances_ws_router, tags=["ws_instances"])
     api_router.include_router(schedule_router , tags=["schedules"])
     app.include_router(api_router)
+
+    static_path = Path(__file__).parent / "static"
+    static_path.mkdir(parents=True, exist_ok=True)
+
+    app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
     return app
 

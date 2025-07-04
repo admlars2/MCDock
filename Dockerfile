@@ -1,46 +1,42 @@
-# ------------------------ build stage ------------------------
-# Use the slim variant to keep the final image light‑weight
-FROM python:3.11-slim AS builder
+# ─────────────── Stage 1: build React ────────────────
+FROM node:20-alpine AS ui-build
 
-# Install Poetry (pin the version so builds are reproducible)
-ENV POETRY_VERSION=1.8.2 \
-    POETRY_HOME=/opt/poetry \
-    POETRY_NO_INTERACTION=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=on \
-    PYTHONUNBUFFERED=1
+WORKDIR /ui
+COPY frontend/ ./
+RUN npm ci --legacy-peer-deps \
+ && npm run build        # vite → dist /  CRA → build
 
-RUN pip install "poetry==${POETRY_VERSION}"
+RUN mkdir /ui/out \
+ && cp -r $( [ -d dist ] && echo dist || echo build )/* /ui/out/
 
-# Copy only dependency files first (leverages layer caching)
-WORKDIR /app
-COPY pyproject.toml poetry.lock* ./
-
-# If you don’t commit poetry.lock yet, the wildcard keeps the build happy
-RUN poetry export --without-hashes -f requirements.txt -o requirements.txt && \
-    python -m pip install --upgrade --no-cache-dir -r requirements.txt --prefix /install && \
-    python -m pip install --upgrade --no-cache-dir gunicorn "uvicorn[standard]" --prefix /install
-
-# ------------------------ runtime stage ---------------------
+# ─────────────── Stage 2: API + static ───────────────
 FROM python:3.11-slim
 
-# Copy virtualenv from the builder image → slimmer than `pip install` again
-COPY --from=builder /install /usr/local
+ENV PYTHONDONTWRITEBYTECODE=1
 
-# Copy the application source
+# 1) system deps
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends build-essential curl \
+ && rm -rf /var/lib/apt/lists/*
+
+# 2) Poetry + deps
+ENV POETRY_VERSION=1.8.2 \
+    POETRY_VIRTUALENVS_CREATE=false \
+    PYTHONUNBUFFERED=1
+
+RUN pip install "poetry==$POETRY_VERSION"
+
 WORKDIR /app
-COPY . /app
+COPY backend/pyproject.toml backend/poetry.lock* ./
+RUN poetry install --only main --no-interaction --no-ansi
 
-# Environment defaults (override with -e at runtime)
-ENV MC_ROOT=/data/minecraft \
-    CONTROL_PANEL_BEARER_TOKEN=changeme-token \
-    PYTHONPATH=/app
+# 3) project source
+COPY backend/ ./
 
-# Expose the default FastAPI port
+# 4) compiled UI → FastAPI static dir  (note path!)
+RUN mkdir -p src/mcdock/static
+COPY --from=ui-build /ui/out/ src/mcdock/static/
+
+# 5) runtime
 EXPOSE 8000
-
-# Create the data directory as a named volume so host paths are optional
-VOLUME ["/data/minecraft"]
-
-# Start with Uvicorn (single-process by default). For >1 CPU you can
-# use `--workers` or switch the CMD to gunicorn.
-CMD ["uvicorn", "src.mcdock.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "python:gunicorn_conf", "src.mcdock.main:app"]
