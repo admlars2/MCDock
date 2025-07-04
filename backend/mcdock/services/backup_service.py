@@ -5,7 +5,6 @@ from pathlib import Path, PurePosixPath
 
 from ..core.config import settings
 from ..core.models import InstanceStatus
-from .rcon_service import RconService
 from .docker_service import DockerService
 
 class BackupService:
@@ -49,8 +48,8 @@ class BackupService:
 
         if status == InstanceStatus.RUNNING:
             # 1) Pause and flush saves
-            RconService.execute(instance_name, "save-off")
-            RconService.execute(instance_name, "save-all")
+            DockerService.send_command(instance_name, "save-off")
+            DockerService.send_command(instance_name, "save-all")
             time.sleep(3)  # wait for disk I/O
 
         # 2) Create the archive
@@ -61,7 +60,7 @@ class BackupService:
 
         if status == InstanceStatus.RUNNING:
             # 3) Resume saves
-            RconService.execute(instance_name, "save-on")
+            DockerService.send_command(instance_name, "save-on")
 
         # 4) Prune old backups
         max_keep = settings.BACKUP_RETENTION

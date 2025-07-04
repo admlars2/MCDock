@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -65,8 +65,17 @@ def create_app() -> FastAPI:
                 exc.status_code, request.method, request.url.path, exc.detail,
                 exc_info=True,
             )
-            return JSONResponse(500, {"detail": "Internal server error"})
-        return JSONResponse(exc.status_code, {"detail": exc.detail})
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"detail": "Internal server error"},
+            )
+        
+        if exc.status_code == 404 and not request.url.path.startswith("/api/"):
+            return FileResponse(static_path / "index.html")
+
+        # pass-through 4xx
+        return JSONResponse(status_code=exc.status_code,
+                            content={"detail": exc.detail})
 
     app.add_exception_handler(StarletteHTTPException, log_http_5xx)
 

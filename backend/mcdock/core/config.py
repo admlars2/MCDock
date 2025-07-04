@@ -2,22 +2,18 @@
 Application configuration via environment variables.
 """
 from datetime import timedelta
+from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field, AnyHttpUrl
+from pydantic import Field, AnyHttpUrl, field_validator
 
 
 class Settings(BaseSettings):
     # Root directory containing all Minecraft instance folders
-    MC_ROOT: str = Field(validation_alias="MC_ROOT")
-
-    # RCON connection settings
-    RCON_HOST: str = "127.0.0.1"
-    RCON_PORT: int = 25575
-    RCON_PASSWORD: str | None = Field(default=None, validation_alias="RCON_PASSWORD")
+    MC_ROOT: Path = Field(validation_alias="MC_ROOT")
 
     # CORS origins for the frontend (e.g., ["http://localhost:3000"])
-    CORS_ORIGINS: list[AnyHttpUrl] = Field(default=["*"], validation_alias="CORS_ORIGINS")
+    CORS_ORIGINS: list[AnyHttpUrl] = Field(default=["http://localhost:8080"], validation_alias="CORS_ORIGINS")
 
     # User
     USER: str = Field(validation_alias="PANEL_USER")
@@ -33,6 +29,5 @@ class Settings(BaseSettings):
         env_file=".env",
         env_prefix=""
     )
-
 
 settings = Settings()

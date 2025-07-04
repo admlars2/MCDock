@@ -311,6 +311,23 @@ class DockerService:
         cls.start(instance_name)
 
     @classmethod
+    def send_command(cls, instance_name: str, command: str) -> str:
+        """
+        Send a command via RCON-cli for the specified instance.
+        """
+        path = DockerService.get_instance_dir(instance_name)
+
+        result = subprocess.run(
+            ["docker", "exec", instance_name, "rcon-cli", command],
+            cwd=path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+        )
+        return result.stdout.strip()
+
+    @classmethod
     def stream_logs(cls, instance_name: str) -> subprocess.Popen:
         path = cls.get_instance_dir(instance_name)
         return subprocess.Popen(

@@ -16,7 +16,6 @@ from fastapi import (
     WebSocketDisconnect,
     Security
 )
-from mcipc.rcon.exceptions import UnknownCommand
 
 from .models import (
     ResponseMessage,
@@ -27,7 +26,6 @@ from .models import (
 )
 from ..services.docker_service import DockerService
 from ..services.models import Instance
-from ..services.rcon_service import RconService
 from .security import require_user, require_ws_user, UNAUTHORIZED
 
 
@@ -174,10 +172,7 @@ async def send_command(instance_name: str, body: CommandRequest):
         raise HTTPException(status_code=400, detail="Missing 'command' field")
 
     try:
-        output = RconService.execute(instance_name=instance_name, command=cmd)
-
-    except UnknownCommand as e:                        # bad / unknown command
-        raise HTTPException(status_code=400, detail=str(e)) from e
+        output = DockerService.send_command(instance_name=instance_name, command=cmd)
 
     except Exception as e:                            # timeouts, I/O, etc.
         raise HTTPException(status_code=500, detail=str(e)) from e

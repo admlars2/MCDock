@@ -1,0 +1,21 @@
+services:
+  panel-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mcdock-backend-dev
+    
+    ports:
+      - "8000:8000"        # dev backend
+    
+    env_file:
+      - .env
+    
+    volumes:
+      # live-mount backend source for hot-reload
+      - .:/app
+      - "${MC_ROOT}:/data"
+      - /var/run/docker.sock:/var/run/docker.sock
+
+    environment:
+      MC_ROOT: /data
