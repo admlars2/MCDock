@@ -22,7 +22,7 @@ docker compose up --build -d
 # docker-compose.yml
 services:
   panel:
-    image: ghcr.io/your-github-user/mcdock:latest   # pull from GHCR
+    image: ghcr.io/admlars2/mcdock:latest   # pull from GHCR
     container_name: mcdock
     restart: unless-stopped
 

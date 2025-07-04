@@ -34,9 +34,9 @@ RUN poetry install --only main --no-interaction --no-ansi
 COPY backend/ ./
 
 # 4) compiled UI → FastAPI static dir  (note path!)
-RUN mkdir -p src/mcdock/static
-COPY --from=ui-build /ui/out/ src/mcdock/static/
+RUN mkdir -p mcdock/static
+COPY --from=ui-build /ui/out/ mcdock/static/
 
 # 5) runtime
 EXPOSE 8000
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "python:gunicorn_conf", "src.mcdock.main:app"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "python:gunicorn_conf", "mcdock.main:app"]
