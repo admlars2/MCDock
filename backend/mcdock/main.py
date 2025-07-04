@@ -1,5 +1,5 @@
 import logging
-import mcdock.core.logging_config # Configures logging
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, APIRouter, Request
@@ -7,34 +7,57 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.middleware import SlowAPIMiddleware
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from .core import logging_config  # noqa: F401 – side-effect import
 from .core.config import settings
-from .routers.backups import router as backup_router
+from .routers.backups   import router as backup_router
 from .routers.instances import router as instances_router, ws_router as instances_ws_router
 from .routers.schedules import router as schedule_router
-from .routers.auth import router as auth_router
+from .routers.auth      import router as auth_router
 from .services.scheduler import build_scheduler
-
 
 logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
     """
-    Create and configure the FastAPI application."""
-    logger.info("Starting up")
+    Build the FastAPI application with CORS, rate-limiting, routers,
+    static SPA bundle, and an APScheduler that starts/stops with app life-cycle.
+    """
+
+    # ── Scheduler (created now, started in lifespan) ──────────
+    scheduler = build_scheduler()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # ── startup ───────────────────────────────────────────
+        scheduler.start()
+        logger.info(
+            "APScheduler started with %d jobs",
+            len(scheduler.get_jobs(jobstore="default")),
+        )
+        try:
+            yield
+        finally:
+            # ── shutdown ──────────────────────────────────────
+            scheduler.shutdown(wait=False)
+            logger.info("APScheduler shut down")
 
     app = FastAPI(
         title="MCDock Control Panel",
         description="Manage Docker-based Minecraft servers via REST + WebSockets",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
-    # ── handler: HTTPException, but only 5xx codes ──────────────
+    # Make scheduler accessible to routes / deps
+    app.state.scheduler = scheduler
+
+    # ── 5xx logger -----------------------------------------------------------
     async def log_http_5xx(request: Request, exc: StarletteHTTPException):
         if exc.status_code >= 500:
             logger.error(
@@ -42,34 +65,19 @@ def create_app() -> FastAPI:
                 exc.status_code, request.method, request.url.path, exc.detail,
                 exc_info=True,
             )
-            return JSONResponse(status_code=500,
-                                content={"detail": "Internal server error"})
-
-        # return the original 4xx without re-raising
-        return JSONResponse(status_code=exc.status_code,
-                            content={"detail": exc.detail})
+            return JSONResponse(500, {"detail": "Internal server error"})
+        return JSONResponse(exc.status_code, {"detail": exc.detail})
 
     app.add_exception_handler(StarletteHTTPException, log_http_5xx)
 
-    # Rate Limiter
-    limiter = Limiter(
-        key_func=get_remote_address,
-        default_limits=["30/minute"],
-    )
-
+    # ── Rate limiter ---------------------------------------------------------
+    limiter = Limiter(key_func=get_remote_address, default_limits=["30/minute"])
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     app.add_middleware(SlowAPIMiddleware)
 
-    # Job Scheduler
-    scheduler = build_scheduler()
-    app.state.scheduler = scheduler
-    scheduler.start()
-    logger.info("APScheduler started with %d jobs", len(scheduler.get_jobs(jobstore="default")))
-
-    # CORS
+    # ── CORS -----------------------------------------------------------------
     origins = [str(o).rstrip("/") for o in settings.CORS_ORIGINS]
-
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -78,28 +86,27 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    # Include routers
-    api_router = APIRouter(prefix="/api")
+    # ── Routers --------------------------------------------------------------
+    api = APIRouter(prefix="/api")
 
-    # Health check endpoint
-    @api_router.get("/health")
+    @api.get("/health")
     async def health():
         return {"status": "ok"}
 
-    api_router.include_router(auth_router, tags=["auth"])
-    api_router.include_router(backup_router , tags=["backups"])
-    api_router.include_router(instances_router, tags=["instances"])
-    api_router.include_router(instances_ws_router, tags=["ws_instances"])
-    api_router.include_router(schedule_router , tags=["schedules"])
-    app.include_router(api_router)
+    api.include_router(auth_router,            tags=["auth"])
+    api.include_router(backup_router,          tags=["backups"])
+    api.include_router(instances_router,       tags=["instances"])
+    api.include_router(instances_ws_router,    tags=["ws_instances"])
+    api.include_router(schedule_router,        tags=["schedules"])
+    app.include_router(api)
 
+    # ── Static React bundle --------------------------------------------------
     static_path = Path(__file__).parent / "static"
-    static_path.mkdir(parents=True, exist_ok=True)
-
+    static_path.mkdir(exist_ok=True)
     app.mount("/", StaticFiles(directory=static_path, html=True), name="static")
 
     return app
 
 
-# Application entrypoint
+# ASGI entry-point for Gunicorn / Uvicorn-worker
 app = create_app()
