@@ -103,5 +103,3 @@ The Vite dev-server is already proxied to `localhost:8000`, so API calls work wi
 ## 📜  License
 
 MIT © 2025 Adam Larson
-
-```
