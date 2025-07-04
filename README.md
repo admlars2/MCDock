@@ -22,11 +22,8 @@ docker compose up --build -d
 # docker-compose.yml
 services:
   panel:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: mcdock:latest
-    container_name: mcdock-panel
+    image: ghcr.io/your-github-user/mcdock:latest   # pull from GHCR
+    container_name: mcdock
     restart: unless-stopped
 
     ports:
