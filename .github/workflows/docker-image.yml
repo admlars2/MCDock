@@ -5,7 +5,7 @@ on:
   push:
 
 env:
-  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  IMAGE_NAME: ghcr.io/${{ toLower(github.repository) }}
 
 jobs:
   build:
