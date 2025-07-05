@@ -3,7 +3,7 @@
 ############################################################
 FROM node:20-alpine AS ui-build
 
-ENV VITE_API_BASE=http://localhost:8080/api
+ENV VITE_API_BASE=/api
 
 WORKDIR /ui
 COPY frontend/ ./
