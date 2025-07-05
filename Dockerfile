@@ -3,14 +3,14 @@
 ############################################################
 FROM node:20-alpine AS ui-build
 
+ENV VITE_API_BASE=http://localhost:8080/api
+
 WORKDIR /ui
 COPY frontend/ ./
-RUN npm ci --legacy-peer-deps \
- && npm run build               # vite → dist  |  CRA → build
-
+RUN npm ci --legacy-peer-deps && npm run build
+ 
 # Collect the compiled output in one predictable place
-RUN mkdir /ui/out \
- && cp -r $( [ -d dist ] && echo dist || echo build )/* /ui/out/
+RUN mkdir /ui/out && cp -r dist/* /ui/out/
 
 
 ############################################################
@@ -47,7 +47,9 @@ RUN poetry export --only main --without-hashes --format requirements.txt > requi
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    APP_ENV=prod
 
 # --- system deps -------------------------------------------------
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -68,23 +70,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         docker-ce-cli docker-compose-plugin \
  && rm -rf /var/lib/apt/lists/*
 
-
-# Create non-root user
-RUN adduser --disabled-password --gecos "" app
+# ───────── create non-root user ─────────────────────────
 WORKDIR /app
 
-# Install wheels built in previous stage
+# ───────── install wheels built in previous stage ───────
 COPY --from=py-build /tmp/wheels /tmp/wheels
 RUN pip install --no-index --find-links=/tmp/wheels /tmp/wheels/*
 
-# App source
+# ───────── project source + static files ────────────────
 COPY backend/ ./
-
-# Compiled UI → FastAPI static dir
 RUN mkdir -p mcdock/static
 COPY --from=ui-build /ui/out/ mcdock/static/
 
-# Gunicorn config lives inside backend/ (copy above already grabbed it)
 EXPOSE 8000
-USER app
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "gunicorn_conf", "mcdock.main:app"]
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "-c", "gunicorn_conf.py", "mcdock.main:app"]

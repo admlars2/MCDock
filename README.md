@@ -49,6 +49,12 @@ services:
 ### 🔑  Generate a new password hash
 
 ```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Generate a JWT Token
+
+```bash
 python backend/generate_pw_hash.py "your-strong-password"
 ```
 

@@ -3,12 +3,18 @@ Application configuration via environment variables.
 """
 from datetime import timedelta
 from pathlib import Path
+from enum import Enum
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, AnyHttpUrl, field_validator
 
+class Environment(str, Enum):
+    DEV = "dev"
+    PROD = "prod"
 
 class Settings(BaseSettings):
+    ENV: Environment = Field(default=Environment.DEV, validation_alias="APP_ENV")
+
     # Root directory containing all Minecraft instance folders
     MC_ROOT: Path = Field(validation_alias="MC_ROOT")
 

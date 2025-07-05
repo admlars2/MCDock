@@ -13,7 +13,7 @@ from slowapi.util import get_remote_address
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .core import logging_config  # noqa: F401 – side-effect import
-from .core.config import settings
+from .core.config import settings, Environment
 from .routers.backups   import router as backup_router
 from .routers.instances import router as instances_router, ws_router as instances_ws_router
 from .routers.schedules import router as schedule_router
@@ -52,6 +52,9 @@ def create_app() -> FastAPI:
         description="Manage Docker-based Minecraft servers via REST + WebSockets",
         version="0.1.0",
         lifespan=lifespan,
+        docs_url=None if settings.ENV == Environment.PROD else "/docs",
+        redoc_url=None if settings.ENV == Environment.PROD else "/redoc",
+        openapi_url=None if settings.ENV == Environment.PROD else "/openapi.json"
     )
 
     # Make scheduler accessible to routes / deps
